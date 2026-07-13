@@ -1,8 +1,8 @@
 <div align="center">
-  <img src="apps/web/src/logo.png" alt="Finetune Agent" width="120" />
+  <img src="apps/web/src/logo.png" alt="utune Agent" width="120" />
 </div>
 
-# Finetune Agent — Multi-Agent B2B Intelligence System
+# utune Agent — Multi-Agent B2B Intelligence System
 
 Collaborative AI system dengan 4+ specialized agents untuk scraping, scoring, dan menganalisis prospek B2B — **live production** dengan data real dari Google Maps.
 
@@ -210,7 +210,7 @@ Detail: [DEPLOY.md](./DEPLOY.md)
 
 ```bash
 git clone [repo-url]
-cd finetune-agent
+cd utune-agent
 pnpm install
 cp .env.example .env  # isi DATABASE_URL, REDIS_URL, NVIDIA_API_KEY
 pnpm dev              # turbo: web (3000) + api (3001) + workers
@@ -221,7 +221,7 @@ pnpm dev              # turbo: web (3000) + api (3001) + workers
 ## Project Structure
 
 ```
-finetune-agent/
+utune-agent/
 ├── apps/
 │   ├── web/          Next.js 15 App Router (frontend)
 │   ├── api/          NestJS 11 REST API + BullMQ queue bridge

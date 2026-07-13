@@ -1,871 +1,979 @@
 # PLANNING-SCOPE.md
 
-> Build Twenty-inspired CRM UI into existing Next.js app
-> Project: B2B Business Finder & Mapped CRM (Lead Management Focus)
-> Date: 2026-07-13
-> **Scope:** Pure CRM for lead management - Finance simulator removed
+> Task-Based Project Plan: B2B Lead Generation CRM (SaaS)
+> Product: Map-first CRM for field sales teams
+> Timeline: 5 weeks MVP
+> Updated: 2026-07-13
 
 ---
 
-## Executive Summary (Revised)
+## 🎯 Project Goals
 
-**Goal:** Build a polished CRM UI directly into our existing Next.js app (`apps/web/`), inspired by Twenty's design system, focused purely on **lead management** (finding, enriching, mapping, pipeline management).
+**Primary Goal:** Launch SaaS product with 50 beta users by Week 6
 
-**Approach:** Build from scratch with shadcn/ui using Twenty as design reference. Connect to our existing NestJS backend (not Twenty's backend).
-
-**Timeline:** 3 weeks (1 week UI foundation, 1 week CRM features, 1 week map integration)
-
-**Key Benefit:** No separate Twenty deployment, full control over UI/UX, laser-focused on lead generation use case.
-
-**Out of Scope:** Finance simulator, market analysis, transaction management (removed to focus on core value prop).
-
----
-
-## Architecture (Revised)
-
-### Current State
-
-```
-apps/web/          Next.js 15 (minimal scaffold, no CRM UI yet)
-apps/api/          NestJS (REST + BullMQ)
-apps/workers/      Python scraper + AI lead enrichment agents
-packages/db/       Drizzle schema (leads, jobs, ai_insights, workspaces, users)
-packages/ai/       AI agents for lead enrichment (extractor, reviews, sales insights)
-```
-
-### Target State
-
-```
-apps/web/
-  ├── app/
-  │   ├── (marketing)/
-  │   │   └── page.tsx                    # Landing page (existing)
-  │   └── (app)/
-  │       └── dashboard/
-  │           ├── page.tsx                # Overview (NEW: Twenty-style)
-  │           ├── leads/
-  │           │   ├── page.tsx            # Table view (NEW)
-  │           │   ├── [id]/page.tsx       # Lead detail (NEW)
-  │           │   └── kanban/page.tsx     # Pipeline kanban (NEW)
-  │           ├── map/
-  │           │   └── page.tsx            # Map view (CUSTOM)
-  │           ├── jobs/page.tsx           # Scraping jobs (NEW)
-  │           └── settings/page.tsx       # Settings (NEW)
-  │
-  ├── components/
-  │   ├── crm/                            # Twenty-inspired components
-  │   │   ├── data-table/
-  │   │   │   ├── data-table.tsx          # Reusable table with filters
-  │   │   │   ├── columns.tsx             # Column definitions
-  │   │   │   └── toolbar.tsx             # Filters, search, views
-  │   │   ├── kanban/
-  │   │   │   ├── board.tsx               # Kanban board
-  │   │   │   ├── column.tsx              # Stage column
-  │   │   │   └── card.tsx                # Lead card
-  │   │   ├── detail-panel/
-  │   │   │   ├── panel.tsx               # Slide-over panel
-  │   │   │   ├── tabs.tsx                # Activity, Notes, AI
-  │   │   │   └── fields.tsx              # Editable fields
-  │   │   └── command-menu/
-  │   │       └── command.tsx             # Cmd+K quick actions
-  │   └── map/                            # Custom map components
-  │       ├── map-container.tsx
-  │       ├── marker-cluster.tsx
-  │       └── route-planner.tsx
-  │
-  └── lib/
-      └── api/                            # API client (fetch to NestJS)
-          ├── leads.ts                    # Lead CRUD + filters
-          ├── jobs.ts                     # Scraping jobs
-          └── workspaces.ts               # Workspace/team management
-```
-
-**Data flow:**
-- User searches businesses → Next.js UI → NestJS API → BullMQ (scrape job)
-- Python scraper → Results → DB (leads table)
-- AI agents enrich leads (reviews summary, sales insights) → ai_insights table
-- Next.js UI → Read enriched leads → Display in table/kanban/map views
-
-**No Twenty backend involved!** Pure CRM for **lead generation and management**.
+**Core Features:**
+- Multi-tenant auth & workspaces
+- Business scraper (Google Maps data)
+- Lead management (table, kanban, detail views)
+- Map view with clustering
+- Social media enrichment (Instagram, Facebook, TikTok)
+- Subscription billing (Stripe)
+- AI lead insights
 
 ---
 
-## Three Implementation Approaches
+## 📅 5-Week Sprint Plan
 
-### Option A: Fork Twenty Frontend Components ⚠️
+### **Week 1: Foundation & Auth** (Days 1-5)
+**Goal:** Users can sign up, create workspace, see empty dashboard
 
-**How:** Clone Twenty repo, extract React components, adapt to our API.
+### **Week 2: Scraping & Data** (Days 6-10)
+**Goal:** Users can scrape businesses, view in table
 
-**Pros:**
-- Get Twenty's exact UI/UX
-- Components are battle-tested
+### **Week 3: CRM Core** (Days 11-15)
+**Goal:** Pipeline management, lead detail, AI enrichment
 
-**Cons:**
-- Twenty components tightly coupled to their GraphQL API
-- Massive refactoring needed (~2000+ lines to adapt)
-- Hard to maintain (Twenty updates won't apply easily)
-- License: AGPL (requires releasing our code if we modify)
+### **Week 4: Map & Social** (Days 16-20)
+**Goal:** Map view, social media discovery
 
-**Verdict:** ❌ **Not recommended** (too much work, legal complexity)
+### **Week 5: Billing & Polish** (Days 21-25)
+**Goal:** Payment integration, onboarding, beta launch
 
 ---
 
-### Option B: Use shadcn/ui + TanStack Table (Inspired by Twenty) ✅
+## Week 1: Foundation & Auth (Days 1-5)
 
-**How:** Build CRM UI from scratch using shadcn/ui components, use Twenty as design reference.
+### **Day 1: Setup & Design System**
 
-**Pros:**
-- Full control, no coupling to Twenty
-- shadcn/ui already used by Twenty internally
-- MIT license (no restrictions)
-- Easy to customize
-- Integrates perfectly with Next.js 15
+#### Tasks:
 
-**Cons:**
-- Have to build components ourselves (~1-2 weeks)
-- Won't be 100% identical to Twenty UI
+**1.1 Project Setup**
+- [ ] Install shadcn/ui in `apps/web`
+  ```bash
+  cd apps/web
+  pnpm dlx shadcn-ui@latest init
+  ```
+- [ ] Add shadcn components: `button`, `input`, `card`, `dialog`, `dropdown-menu`, `sheet`, `table`
+- [ ] Configure Tailwind with Twenty-inspired colors (see appendix)
+- [ ] Setup `next-themes` for dark mode support
 
-**Verdict:** ✅ **RECOMMENDED** (best balance of quality and control)
+**Time:** 2 hours  
+**Acceptance:** Design system documented in `/components/ui/README.md`
 
-**Stack:**
-```json
-{
-  "dependencies": {
-    "@tanstack/react-table": "^8.11.0",    // Table with sorting, filtering
-    "@tanstack/react-query": "^5.17.0",    // Data fetching
-    "@dnd-kit/core": "^6.1.0",             // Drag-drop for kanban
-    "cmdk": "^0.2.0",                      // Command menu (Cmd+K)
-    "vaul": "^0.9.0",                      // Drawer/sheet for detail panel
-    "recharts": "^2.10.0",                 // Charts for dashboard
-    "date-fns": "^3.0.0",                  // Date formatting
-    "zod": "^3.22.0",                      // Schema validation (already have)
-    "react-hook-form": "^7.49.0"           // Forms
+---
+
+**1.2 Database Schema (Auth)**
+- [ ] Create `packages/db/src/schema/auth.ts`
+- [ ] Add tables: `users`, `workspaces`, `workspace_memberships`
+- [ ] Add fields to `workspaces`:
+  - `plan` (free/starter/pro/business)
+  - `stripeCustomerId`, `stripeSubscriptionId`
+  - `trialEndsAt`, `subscriptionStatus`
+  - `leadsCount`, `monthlyScrapingQuota`, `monthlyScrapingUsed`
+- [ ] Run migration: `pnpm db:generate && pnpm db:migrate`
+
+**Time:** 2 hours  
+**Acceptance:** Tables visible in `pnpm db:studio`
+
+---
+
+**1.3 Supabase Auth Setup**
+- [ ] Create Supabase project (or use existing)
+- [ ] Get API keys → add to `.env`
+  ```
+  NEXT_PUBLIC_SUPABASE_URL=...
+  NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+  SUPABASE_SERVICE_ROLE_KEY=...
+  ```
+- [ ] Create `lib/supabase/client.ts` (browser)
+- [ ] Create `lib/supabase/server.ts` (server components)
+- [ ] Setup auth middleware (`middleware.ts`)
+
+**Time:** 1 hour  
+**Acceptance:** Auth client works in console
+
+---
+
+**1.4 Sign Up Page**
+- [ ] Create `app/(auth)/signup/page.tsx`
+- [ ] Form: Email, Password, "Create Account" button
+- [ ] On submit → Supabase signup
+- [ ] Send email verification link
+- [ ] Show loading state during signup
+- [ ] Error handling (email exists, weak password)
+
+**Time:** 3 hours  
+**Acceptance:** Can create account, receive verification email
+
+---
+
+### **Day 2: Auth Flow & Workspace**
+
+**2.1 Login Page**
+- [ ] Create `app/(auth)/login/page.tsx`
+- [ ] Form: Email, Password, "Remember me" checkbox
+- [ ] "Forgot password?" link
+- [ ] On submit → Supabase login
+- [ ] Redirect to `/dashboard` on success
+- [ ] Error handling (wrong password, email not verified)
+
+**Time:** 2 hours  
+**Acceptance:** Can login, redirected to dashboard
+
+---
+
+**2.2 Email Verification**
+- [ ] Create `app/(auth)/verify-email/page.tsx`
+- [ ] Show "Check your email" message after signup
+- [ ] Handle verification token from email link
+- [ ] Mark user as verified in DB
+- [ ] Redirect to onboarding
+
+**Time:** 1 hour  
+**Acceptance:** Email verification works end-to-end
+
+---
+
+**2.3 Workspace Creation (Auto)**
+- [ ] Create `apps/api/src/workspaces/workspaces.service.ts`
+- [ ] Method: `createWorkspace(userId: string)`
+  - Generate unique slug from email
+  - Set default plan: `free`
+  - Set trial: 7 days from now
+  - Set quota: 15 scrapes/month
+- [ ] Call from signup flow (after user created)
+- [ ] Create workspace membership (role: owner)
+
+**Time:** 2 hours  
+**Acceptance:** New user auto-gets workspace in DB
+
+---
+
+**2.4 Dashboard Layout**
+- [ ] Create `app/(app)/dashboard/layout.tsx`
+- [ ] Sidebar navigation:
+  - Dashboard (overview)
+  - Leads
+  - Map
+  - Jobs
+  - Settings
+- [ ] Top bar:
+  - Workspace switcher dropdown
+  - Search (Cmd+K)
+  - User menu (avatar, logout)
+- [ ] Mobile responsive (hamburger menu)
+
+**Time:** 4 hours  
+**Acceptance:** Layout renders, sidebar links work
+
+---
+
+### **Day 3: Workspace Management**
+
+**3.1 Workspace Switcher**
+- [ ] Create `components/workspace-switcher.tsx`
+- [ ] Dropdown shows all workspaces user is member of
+- [ ] Display: workspace name + role badge
+- [ ] "Create Workspace" button
+- [ ] Switch workspace → update URL + reload data
+- [ ] Store current workspace in cookie
+
+**Time:** 3 hours  
+**Acceptance:** Can switch between workspaces
+
+---
+
+**3.2 Create Workspace Dialog**
+- [ ] Create dialog component
+- [ ] Form: Workspace name
+- [ ] On submit → POST `/api/workspaces`
+- [ ] Auto-switch to new workspace after creation
+- [ ] Close dialog
+
+**Time:** 2 hours  
+**Acceptance:** Can create multiple workspaces
+
+---
+
+**3.3 Settings Page (Basic)**
+- [ ] Create `app/(app)/dashboard/settings/page.tsx`
+- [ ] Tabs: General, Members, Billing
+- [ ] General tab:
+  - Workspace name (editable)
+  - Workspace slug (read-only)
+  - Delete workspace button (confirm dialog)
+- [ ] Update workspace → PATCH `/api/workspaces/:id`
+
+**Time:** 2 hours  
+**Acceptance:** Can rename workspace
+
+---
+
+**3.4 API Client Setup**
+- [ ] Create `lib/api/client.ts` (base fetch wrapper)
+- [ ] Add auth headers (Supabase token)
+- [ ] Add workspace header (`X-Workspace-ID`)
+- [ ] Error handling (401, 403, 500)
+- [ ] Create `lib/api/workspaces.ts` (typed methods)
+
+**Time:** 1 hour  
+**Acceptance:** API client documented
+
+---
+
+### **Day 4: Empty States & Onboarding**
+
+**4.1 Dashboard Overview Page**
+- [ ] Create `app/(app)/dashboard/page.tsx`
+- [ ] Empty state (no leads yet):
+  - Hero illustration
+  - "Welcome to YourCRM!"
+  - CTA: "Find Your First Leads"
+- [ ] Stats widgets (when data exists):
+  - Total leads
+  - Leads by stage (pie chart)
+  - Recent scraping jobs
+
+**Time:** 3 hours  
+**Acceptance:** Dashboard renders with empty state
+
+---
+
+**4.2 Onboarding Flow (Optional)**
+- [ ] Create `app/(app)/onboarding/page.tsx`
+- [ ] Step 1: "What industry?" (restaurant, retail, etc.)
+- [ ] Step 2: "Company size?" (solo, 2-10, 11-50)
+- [ ] Step 3: "Use case?" (field sales, cold email)
+- [ ] Save to `workspaces.onboardingCompleted`
+- [ ] Redirect to dashboard
+- [ ] Skip option (dismiss onboarding)
+
+**Time:** 3 hours  
+**Acceptance:** Onboarding saves data to DB
+
+---
+
+**4.3 Command Menu (Cmd+K)**
+- [ ] Install `cmdk` package
+- [ ] Create `components/command-menu.tsx`
+- [ ] Keyboard shortcut: Cmd/Ctrl + K
+- [ ] Search leads (by name)
+- [ ] Quick actions: "Create lead", "Start scraping job"
+- [ ] Navigation: "Go to Dashboard", "Go to Settings"
+
+**Time:** 2 hours  
+**Acceptance:** Cmd+K opens, can search & navigate
+
+---
+
+### **Day 5: Testing & Documentation**
+
+**5.1 Auth Flow Testing**
+- [ ] Test: Sign up → verify email → login
+- [ ] Test: Login → redirect to dashboard
+- [ ] Test: Logout → redirect to login
+- [ ] Test: Protected route access (without auth → login)
+- [ ] Test: Workspace switcher (multi-workspace user)
+
+**Time:** 2 hours  
+**Acceptance:** All auth flows work
+
+---
+
+**5.2 Week 1 Documentation**
+- [ ] Update `README.md` with setup instructions
+- [ ] Document env variables needed
+- [ ] Screenshot of dashboard layout
+- [ ] List of completed features
+
+**Time:** 1 hour  
+**Acceptance:** Another dev can run project
+
+---
+
+**Week 1 Deliverable:**
+✅ Users can sign up, verify email, login  
+✅ Auto-create workspace on signup  
+✅ Dashboard layout with sidebar  
+✅ Workspace switcher  
+✅ Empty state (ready for data)
+
+---
+
+## Week 2: Scraping & Data (Days 6-10)
+
+### **Day 6: Database Schema (Leads)**
+
+**6.1 Lead Schema**
+- [ ] Create `packages/db/src/schema/leads.ts`
+- [ ] Fields:
+  ```typescript
+  - id, workspaceId, name, address
+  - latitude, longitude, placeId
+  - phone, email, website
+  - category, rating, reviewCount
+  - stage (new/contacted/qualified/closed)
+  - assignedTo (user FK)
+  - jobId (scraping job FK)
+  - createdAt, updatedAt
+  ```
+- [ ] Add indexes: `workspaceId`, `stage`, `assignedTo`
+- [ ] Run migration
+
+**Time:** 1 hour  
+**Acceptance:** Leads table in DB
+
+---
+
+**6.2 Jobs Schema**
+- [ ] Create `packages/db/src/schema/jobs.ts`
+- [ ] Fields:
+  ```typescript
+  - id, workspaceId, query
+  - status (pending/running/completed/failed)
+  - resultCount, errorMessage
+  - createdAt, completedAt
+  ```
+- [ ] Run migration
+
+**Time:** 30 min  
+**Acceptance:** Jobs table in DB
+
+---
+
+**6.3 API Endpoints (Leads)**
+- [ ] Create `apps/api/src/leads/leads.controller.ts`
+- [ ] `GET /leads` (filtered by workspaceId)
+  - Query params: `stage`, `category`, `rating`, `assignedTo`
+  - Sort: `createdAt`, `rating`, `name`
+  - Pagination: `limit`, `offset`
+- [ ] `GET /leads/:id`
+- [ ] `POST /leads` (manual lead creation)
+- [ ] `PATCH /leads/:id`
+- [ ] `DELETE /leads/:id`
+- [ ] `PATCH /leads/:id/stage` (quick stage update)
+
+**Time:** 4 hours  
+**Acceptance:** All endpoints work in Postman
+
+---
+
+### **Day 7: Business Scraper Integration**
+
+**7.1 Jobs API**
+- [ ] Create `apps/api/src/jobs/jobs.controller.ts`
+- [ ] `POST /jobs/scrape`
+  - Body: `{ query: string, category: string, location: object }`
+  - Validate: workspace quota not exceeded
+  - Create job record (status: pending)
+  - Push to BullMQ `scrape-map` queue
+  - Return job ID
+- [ ] `GET /jobs` (list all jobs for workspace)
+- [ ] `GET /jobs/:id` (single job + results)
+
+**Time:** 3 hours  
+**Acceptance:** Job creation works, pushes to queue
+
+---
+
+**7.2 Scraper Worker (Connect Existing)**
+- [ ] Update `apps/workers/src/processors/scrape.processor.ts`
+- [ ] After Python scraper completes:
+  - Save each business to `leads` table
+  - Set `jobId` FK
+  - Set initial `stage` = 'new'
+  - Increment `workspace.leadsCount`
+  - Increment `workspace.monthlyScrapingUsed`
+- [ ] Update job status to 'completed'
+- [ ] Set `job.resultCount`
+
+**Time:** 2 hours  
+**Acceptance:** Scraping creates leads in DB
+
+---
+
+**7.3 Quota Enforcement**
+- [ ] Check quota in `POST /jobs/scrape`:
+  ```typescript
+  if (workspace.monthlyScrapingUsed >= workspace.monthlyScrapingQuota) {
+    throw new ForbiddenException('Monthly quota exceeded');
   }
-}
-```
+  ```
+- [ ] Check lead cap:
+  ```typescript
+  const limit = { free: 50, starter: 200, pro: 800, business: 2000 };
+  if (workspace.leadsCount >= limit[workspace.plan]) {
+    throw new ForbiddenException('Lead limit reached. Upgrade plan.');
+  }
+  ```
+
+**Time:** 1 hour  
+**Acceptance:** Quota blocks scraping when exceeded
 
 ---
 
-### Option C: Hybrid - Use Twenty Cloud + Embed via iframe 🤔
+### **Day 8: Leads Table View**
 
-**How:** Deploy Twenty separately, embed certain views via iframe.
+**8.1 Install TanStack Table**
+- [ ] Install `@tanstack/react-table`, `@tanstack/react-query`
+- [ ] Create `lib/api/leads.ts` (client-side fetch)
+- [ ] Setup React Query provider
 
-**Pros:**
-- Zero UI development
-- Get Twenty updates automatically
-
-**Cons:**
-- Iframe = poor UX (no deep integration)
-- Still need custom map view
-- Duplicate auth, data sync issues
-
-**Verdict:** ❌ **Not suitable** (defeats purpose of unified UX)
+**Time:** 30 min  
+**Acceptance:** Packages installed
 
 ---
 
-## Chosen Approach: Option B (shadcn/ui + Twenty Design Reference)
+**8.2 Data Table Component**
+- [ ] Create `components/crm/data-table/data-table.tsx`
+- [ ] Create `components/crm/data-table/columns.tsx`
+  - Columns: Checkbox, Name, Address, Rating, Stage, Assigned, Actions
+- [ ] Create `components/crm/data-table/toolbar.tsx`
+  - Search by name/address
+  - Filter by stage (dropdown)
+  - Filter by rating (slider 1-5★)
+  - Filter by category (multi-select)
+- [ ] Pagination (10/25/50/100 per page)
+- [ ] Row click → open detail panel
 
-We'll build CRM UI components from scratch using **shadcn/ui**, styled to match Twenty's design system.
-
----
-
-## Technical Specification
-
-### 1. Design System (Twenty-inspired)
-
-**Colors (extract from Twenty):**
-```css
-/* apps/web/app/globals.css */
-:root {
-  --background: 0 0% 100%;
-  --foreground: 0 0% 3.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 0 0% 3.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 3.9%;
-  --primary: 218 70% 50%;          /* Twenty blue */
-  --primary-foreground: 0 0% 98%;
-  --secondary: 0 0% 96.1%;
-  --secondary-foreground: 0 0% 9%;
-  --muted: 0 0% 96.1%;
-  --muted-foreground: 0 0% 45.1%;
-  --accent: 218 70% 50%;
-  --accent-foreground: 0 0% 9%;
-  --border: 0 0% 89.8%;
-  --input: 0 0% 89.8%;
-  --ring: 218 70% 50%;
-  --radius: 0.5rem;
-}
-```
-
-**Typography:**
-```typescript
-// tailwind.config.ts
-export default {
-  theme: {
-    extend: {
-      fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-      },
-    },
-  },
-};
-```
-
-### 2. Core Components to Build
-
-#### A. Data Table (for Leads, Jobs)
-
-**File:** `components/crm/data-table/data-table.tsx`
-
-**Features:**
-- Column sorting (click header)
-- Multi-column filtering (AND/OR logic)
-- Search (name, address, email)
-- Column visibility toggle
-- Row selection (checkbox)
-- Pagination
-- Saved views (dropdown to switch filters)
-
-**Base:** TanStack Table + shadcn/ui Table component
-
-**Example usage:**
-```tsx
-<DataTable
-  columns={leadsColumns}
-  data={leads}
-  filterableColumns={['stage', 'rating', 'category']}
-  searchableColumns={['name', 'address']}
-  onRowClick={(lead) => openDetailPanel(lead)}
-/>
-```
-
-#### B. Kanban Board (for Pipeline)
-
-**File:** `components/crm/kanban/board.tsx`
-
-**Features:**
-- Drag-drop cards between stages
-- Stage columns (New → Contacted → Qualified → Closed)
-- Card shows: name, address, rating, assigned rep
-- Click card → open detail panel
-- "Add lead" button per stage
-
-**Base:** @dnd-kit/core + custom styling
-
-**Example:**
-```tsx
-<KanbanBoard
-  stages={['new', 'contacted', 'qualified', 'closed']}
-  leads={leads}
-  onDragEnd={(leadId, newStage) => updateLeadStage(leadId, newStage)}
-  onCardClick={(lead) => openDetailPanel(lead)}
-/>
-```
-
-#### C. Detail Panel (Slide-over)
-
-**File:** `components/crm/detail-panel/panel.tsx`
-
-**Features:**
-- Slide from right (like Twenty)
-- Tabs: Overview, Activity, Notes, AI Insights
-- Editable fields (click to edit)
-- Action buttons: Call, Email, Schedule, Mark stage
-- Close on Escape key
-
-**Base:** Vaul drawer (or shadcn/ui Sheet)
-
-**Example:**
-```tsx
-<DetailPanel lead={selectedLead} isOpen={isPanelOpen} onClose={closePanel}>
-  <DetailTabs>
-    <Tab name="Overview">
-      <EditableField label="Name" value={lead.name} onSave={...} />
-      <EditableField label="Phone" value={lead.phone} type="phone" />
-      {/* ... */}
-    </Tab>
-    <Tab name="AI Insights">
-      <AIInsightCard insights={lead.aiInsights} />
-    </Tab>
-  </DetailTabs>
-</DetailPanel>
-```
-
-#### D. Command Menu (Cmd+K)
-
-**File:** `components/crm/command-menu/command.tsx`
-
-**Features:**
-- Quick search leads (by name)
-- Quick actions: "Create lead", "Start scraping job", "Open map"
-- Navigation: "Go to Dashboard", "Go to Settings"
-- Recent items
-
-**Base:** cmdk library
-
-**Example:**
-```tsx
-<Command>
-  <CommandInput placeholder="Search or run a command..." />
-  <CommandList>
-    <CommandGroup heading="Quick Actions">
-      <CommandItem onSelect={() => navigate('/dashboard/leads/new')}>
-        Create Lead
-      </CommandItem>
-    </CommandGroup>
-    <CommandGroup heading="Recent Leads">
-      {recentLeads.map(lead => (
-        <CommandItem key={lead.id} onSelect={() => openLead(lead.id)}>
-          {lead.name}
-        </CommandItem>
-      ))}
-    </CommandGroup>
-  </CommandList>
-</Command>
-```
-
-### 3. Map View (Custom - Unchanged from Original Plan)
-
-**File:** `app/(app)/dashboard/map/page.tsx`
-
-**Features:**
-- MapLibre GL JS with OpenFreeMap tiles
-- Markers for all leads (lat/lng from DB)
-- Clustering for dense areas (supercluster)
-- Filter panel: rating, stage, category, assigned rep
-- Click marker → mini popup with lead summary + "View details" button
-- Multi-select mode → route planning
-- Territory polygons (if Territory feature exists)
-
-**No changes** from original PLANNING-SCOPE.md map spec.
+**Time:** 6 hours  
+**Acceptance:** Table shows leads with filters
 
 ---
 
-## Implementation Phases (Revised)
+### **Day 9: Leads Page**
 
-### Phase 1: UI Foundation (Week 1)
+**9.1 Leads List Page**
+- [ ] Create `app/(app)/dashboard/leads/page.tsx`
+- [ ] Fetch leads via React Query
+- [ ] Render `<DataTable />` component
+- [ ] "New Lead" button (top right)
+- [ ] Loading skeleton
+- [ ] Empty state (no leads): "Run your first scraping job"
 
-**Goal:** Setup shadcn/ui, build core reusable components.
-
-#### Tasks
-
-**Day 1: Setup**
-- [ ] Install shadcn/ui: `pnpm dlx shadcn-ui@latest init`
-- [ ] Add components: `table`, `sheet`, `dialog`, `command`, `button`, `input`, `select`
-- [ ] Configure Tailwind with Twenty-inspired colors
-- [ ] Setup TanStack Query for data fetching
-
-**Day 2-3: Data Table**
-- [ ] Create `components/crm/data-table/` structure
-- [ ] Build DataTable component with TanStack Table
-- [ ] Add column sorting, filtering, search
-- [ ] Add column visibility toggle
-- [ ] Test with mock lead data
-
-**Day 4: Detail Panel**
-- [ ] Create `components/crm/detail-panel/`
-- [ ] Build slide-over panel with Vaul
-- [ ] Add tabs (Overview, Activity, Notes, AI)
-- [ ] Editable fields (click-to-edit inline)
-
-**Day 5: Command Menu + Layout**
-- [ ] Build command menu (Cmd+K)
-- [ ] Create dashboard layout:
-  - Sidebar navigation
-  - Top bar (workspace switcher, search, user menu)
-  - Breadcrumbs
-- [ ] Test navigation flow
-
-**Success Criteria:**
-- ✅ Data table shows 50 leads with sorting/filtering
-- ✅ Detail panel opens on row click
-- ✅ Cmd+K search works
-- ✅ Layout matches Twenty's general structure
+**Time:** 2 hours  
+**Acceptance:** Leads page renders table
 
 ---
 
-### Phase 2: CRM Features (Week 2)
+**9.2 Create Lead Dialog**
+- [ ] Create `components/crm/create-lead-dialog.tsx`
+- [ ] Form fields: Name, Address, Phone, Email, Website, Category
+- [ ] Geocode address → get lat/lng (Google Geocoding API or Nominatim)
+- [ ] On submit → POST `/api/leads`
+- [ ] Refresh table after creation
 
-**Goal:** Build all CRM pages, connect to NestJS API.
+**Time:** 3 hours  
+**Acceptance:** Can manually add lead
 
-#### Day 1-2: Leads Pages
+---
 
-**Table View** (`app/(app)/dashboard/leads/page.tsx`):
-```tsx
-export default async function LeadsPage() {
-  const leads = await fetchLeads(); // Server Component fetch from NestJS
+**9.3 Bulk Actions**
+- [ ] Select multiple leads (checkbox column)
+- [ ] Bulk actions toolbar appears when >0 selected
+- [ ] Actions:
+  - Assign to rep (dropdown)
+  - Change stage (dropdown)
+  - Delete (with confirm)
+- [ ] Show count: "3 leads selected"
 
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between">
-        <h1 className="text-3xl font-bold">Leads</h1>
-        <Button onClick={() => navigate('/dashboard/leads/new')}>
-          + New Lead
-        </Button>
-      </div>
-      <DataTable
-        columns={leadsColumns}
-        data={leads}
-        filterableColumns={['stage', 'rating', 'category']}
-      />
-    </div>
-  );
-}
-```
+**Time:** 2 hours  
+**Acceptance:** Bulk stage change works
 
-**Lead Detail** (`app/(app)/dashboard/leads/[id]/page.tsx`):
-- Full-page view (alternative to slide-over)
-- All fields visible + editable
-- Activity timeline (calls, emails, notes)
-- AI insights section
+---
 
-**Tasks:**
-- [ ] Create leads table page
-- [ ] Create lead detail page
-- [ ] Add "Create lead" form
-- [ ] Wire up to NestJS `/api/leads` endpoints
-- [ ] Test CRUD operations
+### **Day 10: Jobs Page**
 
-#### Day 3: Kanban Pipeline
+**10.1 Jobs Table**
+- [ ] Create `app/(app)/dashboard/jobs/page.tsx`
+- [ ] Table columns: ID, Query, Status, Results, Created
+- [ ] Status badge (pending=gray, running=blue, completed=green, failed=red)
+- [ ] Click row → expand results (list of leads created)
 
-**File:** `app/(app)/dashboard/leads/kanban/page.tsx`
+**Time:** 2 hours  
+**Acceptance:** Jobs history visible
 
-**Tasks:**
-- [ ] Build kanban board component
+---
+
+**10.2 Create Scraping Job Form**
+- [ ] "New Scraping Job" button
+- [ ] Dialog form:
+  - Query (e.g., "restaurants")
+  - Location (City dropdown: Jakarta, Surabaya, Bali, etc.)
+  - Category (dropdown: restaurant, retail, clinic, etc.)
+- [ ] On submit → POST `/api/jobs/scrape`
+- [ ] Show job ID + "Processing..." message
+- [ ] Polling: Check job status every 5s until completed
+
+**Time:** 3 hours  
+**Acceptance:** Scraping job creates leads
+
+---
+
+**10.3 Quota Display**
+- [ ] Show in top bar (or sidebar):
+  ```
+  📊 15/25 scrapes used this month
+  💾 47/200 leads stored
+  ```
+- [ ] Warning when close to limit (80%)
+- [ ] Block "New Job" button when quota exceeded
+
+**Time:** 1 hour  
+**Acceptance:** Quota visible, enforced
+
+---
+
+**Week 2 Deliverable:**
+✅ Database schema for leads + jobs  
+✅ Scraping integration working  
+✅ Leads table view with filters  
+✅ Manual lead creation  
+✅ Jobs history page  
+✅ Quota enforcement
+
+---
+
+## Week 3: CRM Core (Days 11-15)
+
+### **Day 11: Lead Detail View**
+
+**11.1 Detail Panel (Slide-over)**
+- [ ] Install `vaul` (drawer library)
+- [ ] Create `components/crm/detail-panel/panel.tsx`
+- [ ] Slide from right (overlay)
+- [ ] Close on: X button, Escape key, click outside
+- [ ] Loading state when fetching lead
+
+**Time:** 2 hours  
+**Acceptance:** Panel opens/closes smoothly
+
+---
+
+**11.2 Lead Overview Tab**
+- [ ] Create `components/crm/detail-panel/overview-tab.tsx`
+- [ ] Display fields (editable on click):
+  - Name (text input)
+  - Address (text input)
+  - Phone (tel input with click-to-call)
+  - Email (email input)
+  - Website (link, opens in new tab)
+  - Category (select)
+  - Rating (star display)
+- [ ] Inline edit: Click field → input appears → Save/Cancel buttons
+- [ ] On save → PATCH `/api/leads/:id`
+
+**Time:** 4 hours  
+**Acceptance:** Can edit fields inline
+
+---
+
+**11.3 Activity Tab**
+- [ ] Create `components/crm/detail-panel/activity-tab.tsx`
+- [ ] Timeline view (vertical):
+  - Lead created (timestamp)
+  - Stage changed (from → to)
+  - Assigned to rep (user avatar)
+  - Note added (text + author)
+- [ ] "Add Note" button → textarea → save
+- [ ] Store in `activities` table (polymorphic)
+
+**Time:** 3 hours  
+**Acceptance:** Activity timeline renders
+
+---
+
+### **Day 12: Pipeline Kanban**
+
+**12.1 Install DnD Kit**
+- [ ] Install `@dnd-kit/core`, `@dnd-kit/sortable`
+- [ ] Create `components/crm/kanban/board.tsx`
+
+**Time:** 30 min  
+**Acceptance:** Package installed
+
+---
+
+**12.2 Kanban Board**
+- [ ] Create `app/(app)/dashboard/leads/kanban/page.tsx`
+- [ ] 4 columns: New, Contacted, Qualified, Closed
 - [ ] Fetch leads grouped by stage
-- [ ] Implement drag-drop to update stage
-- [ ] Add "Quick add lead" button per column
-- [ ] Persist stage changes to DB
+- [ ] Render cards in each column
+- [ ] Card shows: Name, Address, Rating, Assigned avatar
+- [ ] Click card → open detail panel
 
-#### Day 4: Jobs (Scraping) Page
-
-**File:** `app/(app)/dashboard/jobs/page.tsx`
-
-**Features:**
-- Table showing all scraping jobs (from DB `jobs` table)
-- Columns: ID, query, status, result count, created date
-- "Create new job" button → form with:
-  - Country/city selector
-  - Business type (category)
-  - Enrichment options (emails, reviews, AI insights)
-- Job detail: shows progress, results, errors
-
-**Tasks:**
-- [ ] Create jobs table page
-- [ ] Create "New job" form
-- [ ] Wire to `POST /api/jobs/scrape`
-- [ ] Add real-time status updates (polling or WebSocket)
-
-#### Day 5: Dashboard Overview
-
-**File:** `app/(app)/dashboard/page.tsx`
-
-**Widgets (Lead-focused only):**
-- Total leads (number)
-- Leads by stage (pie chart: New, Contacted, Qualified, Closed)
-- Recent scraping jobs (table: status, count, date)
-- Top leads by rating (mini table: 5★ businesses)
-- Map preview (small embedded map showing last 20 leads)
-- AI enrichment status (% of leads with AI insights)
-
-**Tasks:**
-- [ ] Create dashboard page
-- [ ] Add recharts for lead pipeline chart
-- [ ] Fetch aggregated data from NestJS (`GET /api/stats/dashboard`)
-- [ ] Make widgets clickable (navigate to filtered views)
-
-**Success Criteria:**
-- ✅ Full CRUD for leads working
-- ✅ Kanban drag-drop updates DB
-- ✅ Scraping job creation triggers workers
-- ✅ Dashboard shows real lead data (no finance/market widgets)
+**Time:** 4 hours  
+**Acceptance:** Kanban renders with data
 
 ---
 
-### Phase 3: Map Integration (Week 3)
+**12.3 Drag-Drop Stage Change**
+- [ ] Enable drag-drop between columns
+- [ ] On drop → PATCH `/api/leads/:id/stage`
+- [ ] Optimistic update (UI changes immediately)
+- [ ] Revert if API fails
+- [ ] Show toast: "Lead moved to Contacted"
 
-**Goal:** Build custom map view, integrate with CRM.
+**Time:** 3 hours  
+**Acceptance:** Drag-drop updates stage
 
-#### Day 1-2: Map Foundation
+---
 
-**Tasks:**
-- [ ] Create `app/(app)/dashboard/map/page.tsx`
-- [ ] Initialize MapLibre GL JS
-- [ ] Fetch leads with lat/lng from NestJS API
-- [ ] Render markers for all leads
-- [ ] Add popup on marker click (name, address, rating)
+### **Day 13: AI Enrichment**
 
-#### Day 3: Map Filters & Clustering
+**13.1 AI Insights Schema**
+- [ ] Create `packages/db/src/schema/ai_insights.ts`
+- [ ] Fields:
+  ```typescript
+  - id, leadId
+  - summary (review summary)
+  - weaknesses (pain points detected)
+  - opportunities (sales angles)
+  - sentimentScore (-1 to 1)
+  - createdAt
+  ```
+- [ ] Run migration
 
-**Tasks:**
-- [ ] Build filter panel (sidebar):
+**Time:** 30 min  
+**Acceptance:** Table in DB
+
+---
+
+**13.2 AI Enrichment API**
+- [ ] Create `apps/api/src/ai/ai.controller.ts`
+- [ ] `POST /ai/enrich/:leadId`
+  - Fetch lead from DB
+  - Call existing AI agents (extractor, review analyzer)
+  - Save to `ai_insights` table
+  - Return insights
+- [ ] `GET /ai/insights/:leadId`
+
+**Time:** 2 hours  
+**Acceptance:** Endpoint triggers AI agents
+
+---
+
+**13.3 AI Insights Tab (Lead Detail)**
+- [ ] Create `components/crm/detail-panel/ai-tab.tsx`
+- [ ] Show loading when enriching
+- [ ] Display:
+  - Review summary (card)
+  - Weaknesses (bullet list)
+  - Opportunities (bullet list)
+  - Sentiment score (gauge widget)
+- [ ] "Refresh Insights" button
+
+**Time:** 3 hours  
+**Acceptance:** AI insights visible in panel
+
+---
+
+**13.4 Bulk AI Enrichment**
+- [ ] In leads table, bulk actions:
+  - "Enrich with AI" button (when leads selected)
+- [ ] POST `/api/ai/enrich/bulk` (batch)
+- [ ] Queue each lead in BullMQ
+- [ ] Show progress: "5/10 completed"
+
+**Time:** 2 hours  
+**Acceptance:** Bulk enrichment works
+
+---
+
+### **Day 14: Team Management**
+
+**14.1 Members Settings Page**
+- [ ] Create `app/(app)/dashboard/settings/members/page.tsx`
+- [ ] Table: Email, Role, Status, Actions
+- [ ] "Invite Member" button
+
+**Time:** 2 hours  
+**Acceptance:** Members list renders
+
+---
+
+**14.2 Team Invites**
+- [ ] Create `workspace_invitations` table:
+  ```typescript
+  - id, workspaceId, email, role
+  - token (UUID), status (pending/accepted)
+  - expiresAt (7 days)
+  ```
+- [ ] POST `/api/workspaces/:id/invites`
+  - Generate invite token
+  - Send email with magic link
+  - Link format: `/accept-invite?token=xxx`
+- [ ] `GET /accept-invite?token=xxx`
+  - Verify token not expired
+  - Create user if doesn't exist
+  - Create workspace membership
+  - Mark invite as accepted
+
+**Time:** 4 hours  
+**Acceptance:** Invite flow works end-to-end
+
+---
+
+**14.3 Role-Based Access**
+- [ ] Define roles: Owner, Manager, Rep
+- [ ] Permissions:
+  - Owner: Full access, billing, delete workspace
+  - Manager: Manage leads, invite reps, view all leads
+  - Rep: View/edit only assigned leads
+- [ ] Create guard: `@UseGuards(WorkspaceGuard)`
+- [ ] In `GET /leads`, filter by role:
+  ```typescript
+  if (role === 'rep') {
+    query.where('assignedTo', userId);
+  }
+  ```
+
+**Time:** 3 hours  
+**Acceptance:** Rep only sees assigned leads
+
+---
+
+### **Day 15: Dashboard Widgets**
+
+**15.1 Stats Widgets**
+- [ ] Create `GET /api/stats/dashboard`
+  - Total leads count
+  - Leads by stage (group by)
+  - Recent jobs (last 5)
+  - Top leads by rating
+- [ ] Create widgets on dashboard page:
+  - Total leads (number card)
+  - Pipeline chart (pie/donut chart with recharts)
+  - Recent jobs (mini table)
+  - Top leads (mini table with ⭐)
+
+**Time:** 4 hours  
+**Acceptance:** Dashboard shows real data
+
+---
+
+**15.2 Empty State Improvements**
+- [ ] If no leads: Show "Import first leads" CTA
+- [ ] If no jobs: Show "Start scraping" button
+- [ ] If no team members: Show "Invite team" button
+
+**Time:** 1 hour  
+**Acceptance:** Empty states guide user
+
+---
+
+**Week 3 Deliverable:**
+✅ Lead detail panel with tabs  
+✅ Kanban drag-drop pipeline  
+✅ AI enrichment integration  
+✅ Team invites + role-based access  
+✅ Dashboard with stats widgets
+
+---
+
+## Week 4: Map & Social (Days 16-20)
+
+### **Day 16: Map Foundation**
+
+**16.1 Install MapLibre**
+- [ ] Install `maplibre-gl`, `@turf/turf`, `supercluster`
+- [ ] Add MapLibre CSS to layout
+
+**Time:** 15 min  
+**Acceptance:** Packages installed
+
+---
+
+**16.2 Map Container Component**
+- [ ] Create `components/map/map-container.tsx`
+- [ ] Initialize MapLibre map:
+  - Style: OpenFreeMap (free tiles)
+  - Center: Jakarta (-6.2088, 106.8456)
+  - Zoom: 12
+- [ ] Render in `app/(app)/dashboard/map/page.tsx`
+
+**Time:** 2 hours  
+**Acceptance:** Map renders with tiles
+
+---
+
+**16.3 Markers for Leads**
+- [ ] Fetch all leads with lat/lng
+- [ ] Add GeoJSON source to map
+- [ ] Add circle layer (simple markers)
+- [ ] Color by stage:
+  - New: blue
+  - Contacted: yellow
+  - Qualified: green
+  - Closed: gray
+
+**Time:** 3 hours  
+**Acceptance:** Leads appear as dots
+
+---
+
+### **Day 17: Map Clustering**
+
+**17.1 Cluster Layer**
+- [ ] Enable clustering in GeoJSON source:
+  ```javascript
+  cluster: true,
+  clusterRadius: 50,
+  clusterMaxZoom: 14,
+  ```
+- [ ] Add cluster circle layer (size by point count)
+- [ ] Add cluster count label layer
+- [ ] Click cluster → zoom to bounds
+
+**Time:** 3 hours  
+**Acceptance:** Dense areas show clusters
+
+---
+
+**17.2 Marker Popup**
+- [ ] Click unclustered marker → show popup
+- [ ] Popup content:
+  - Lead name
+  - Address
+  - Rating (stars)
+  - "View Details" button → open detail panel
+- [ ] Close popup on map click
+
+**Time:** 2 hours  
+**Acceptance:** Popup shows lead info
+
+---
+
+**17.3 Map Filters Panel**
+- [ ] Create sidebar filter panel:
   - Rating slider (1-5★)
   - Stage checkboxes
   - Category multi-select
-  - Assigned rep dropdown
-- [ ] Implement clustering with supercluster
-- [ ] Update markers when filters change
+  - Assigned to (user dropdown)
+- [ ] Apply filters → re-fetch leads → update map markers
+- [ ] Show count: "47 leads shown"
 
-#### Day 4: Route Planning
+**Time:** 3 hours  
+**Acceptance:** Filters update map
 
-**Tasks:**
-- [ ] Add multi-select mode (shift+click markers)
-- [ ] "Plan Route" button appears when 2+ selected
-- [ ] Call routing API (OSRM or MapLibre Directions)
-- [ ] Render route polyline on map
+---
+
+### **Day 18: Route Planning**
+
+**18.1 Multi-Select Mode**
+- [ ] Shift+Click markers to select
+- [ ] Selected markers change color (highlighted)
+- [ ] Show selected count: "5 leads selected"
+- [ ] "Plan Route" button appears
+
+**Time:** 2 hours  
+**Acceptance:** Can select multiple markers
+
+---
+
+**18.2 Route Generation**
+- [ ] Click "Plan Route" → call routing API
+- [ ] Options:
+  - Use OSRM (free, self-hosted or public instance)
+  - URL: `http://router.project-osrm.org/route/v1/driving/{coords}`
+- [ ] Get optimized route (multi-stop)
+- [ ] Draw route polyline on map
 - [ ] Show turn-by-turn list in sidebar
-- [ ] "Export to Google Maps" link
 
-#### Day 5: Territory Overlay (Optional)
-
-**Tasks:**
-- [ ] Add Territory management page (`/dashboard/territories`)
-- [ ] Draw polygon tool on map (MapLibre Draw plugin)
-- [ ] Save territories to DB
-- [ ] Render territory polygons on map
-- [ ] Color-code by assigned rep
-
-**Success Criteria:**
-- ✅ Map shows 100+ leads with clustering
-- ✅ Filters work (rating, stage, etc.)
-- ✅ Route planning generates optimal route
-- ✅ Click marker → detail panel opens
-- ✅ Map view feels like native part of CRM (not separate tool)
+**Time:** 4 hours  
+**Acceptance:** Route renders on map
 
 ---
 
-## Data Schema (No Changes)
+**18.3 Export Route**
+- [ ] "Export to Google Maps" button
+- [ ] Generate Google Maps URL with waypoints
+- [ ] Open in new tab
 
-We keep the existing Drizzle schema in `packages/db/src/schema/`:
-
-```typescript
-// packages/db/src/schema/leads.ts
-export const leads = pgTable('leads', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  workspaceId: uuid('workspace_id').references(() => workspaces.id).notNull(),
-  name: text('name').notNull(),
-  address: text('address'),
-  latitude: doublePrecision('latitude'),
-  longitude: doublePrecision('longitude'),
-  phone: text('phone'),
-  email: text('email'),
-  website: text('website'),
-  rating: doublePrecision('rating'),
-  reviewCount: integer('review_count'),
-  category: text('category'), // "restaurant", "dentist", "lawyer", etc.
-  stage: text('stage').default('new'), // new | contacted | qualified | closed
-  assignedTo: uuid('assigned_to').references(() => users.id),
-  placeId: text('place_id'), // Google Maps Place ID (unique)
-  jobId: uuid('job_id').references(() => jobs.id), // Which scraping job created this
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-});
-
-// packages/db/src/schema/ai_insights.ts (existing)
-export const aiInsights = pgTable('ai_insights', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  leadId: uuid('lead_id').references(() => leads.id).notNull(),
-  summary: text('summary'), // AI-generated review summary
-  weaknesses: text('weaknesses'), // Detected pain points
-  opportunities: text('opportunities'), // Sales angles
-  sentimentScore: doublePrecision('sentiment_score'), // -1 to 1
-  createdAt: timestamp('created_at').defaultNow(),
-});
-
-// packages/db/src/schema/territories.ts (Phase 3 - optional)
-export const territories = pgTable('territories', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  workspaceId: uuid('workspace_id').references(() => workspaces.id).notNull(),
-  name: text('name').notNull(),
-  polygon: text('polygon'), // GeoJSON string
-  assignedTo: uuid('assigned_to').references(() => users.id),
-  color: text('color').default('#3B82F6'),
-  createdAt: timestamp('created_at').defaultNow(),
-});
-
-// packages/db/src/schema/jobs.ts (existing)
-export const jobs = pgTable('jobs', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  workspaceId: uuid('workspace_id').references(() => workspaces.id).notNull(),
-  query: text('query').notNull(), // "restaurants in Jakarta"
-  status: text('status').default('pending'), // pending | running | completed | failed
-  resultCount: integer('result_count').default(0),
-  createdAt: timestamp('created_at').defaultNow(),
-  completedAt: timestamp('completed_at'),
-});
-```
-
-**Key Tables:**
-- `leads` — Core business records from scraping
-- `ai_insights` — AI-generated summaries (1:1 with leads)
-- `jobs` — Scraping job queue tracking
-- `workspaces` — Multi-tenant isolation
-- `users` — Team members (assigned to leads/territories)
-- `territories` — (Optional) Geographic zones for reps
-
-**Removed from scope:** `simulations`, `transactions`, `market_analyses` (finance features).
+**Time:** 1 hour  
+**Acceptance:** Opens Google Maps with route
 
 ---
 
-## API Integration
+### **Day 19: Social Media Integration**
 
-### NestJS Endpoints (existing + new)
+**19.1 Social Profiles Schema**
+- [ ] Create `packages/db/src/schema/social_profiles.ts`
+- [ ] Fields:
+  ```typescript
+  - id, leadId
+  - instagram (handle + follower count + last post date)
+  - facebook (page URL + likes)
+  - tiktok (handle + follower count)
+  - linkedin (owner profile URL)
+  - createdAt, updatedAt
+  ```
+- [ ] Run migration
 
-```typescript
-// apps/api/src/leads/leads.controller.ts
-
-@Controller('leads')
-export class LeadsController {
-  // Existing
-  @Get()
-  async findAll(@Query() filters: LeadFilterDto) {
-    return this.leadsService.findAll(filters);
-  }
-
-  @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.leadsService.findOne(id);
-  }
-
-  // New
-  @Post()
-  async create(@Body() dto: CreateLeadDto) {
-    return this.leadsService.create(dto);
-  }
-
-  @Patch(':id')
-  async update(@Param('id') id: string, @Body() dto: UpdateLeadDto) {
-    return this.leadsService.update(id, dto);
-  }
-
-  @Delete(':id')
-  async delete(@Param('id') id: string) {
-    return this.leadsService.delete(id);
-  }
-
-  @Patch(':id/stage')
-  async updateStage(@Param('id') id: string, @Body() dto: UpdateStageDto) {
-    return this.leadsService.updateStage(id, dto.stage);
-  }
-}
-```
-
-### Next.js API Client
-
-```typescript
-// apps/web/lib/api/leads.ts
-import { env } from '@repo/shared/env';
-
-const API_URL = env.API_URL || 'http://localhost:3001';
-
-export async function getLeads(filters?: LeadFilters) {
-  const params = new URLSearchParams(filters as any);
-  const res = await fetch(`${API_URL}/leads?${params}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error('Failed to fetch leads');
-  return res.json();
-}
-
-export async function getLead(id: string) {
-  const res = await fetch(`${API_URL}/leads/${id}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error('Failed to fetch lead');
-  return res.json();
-}
-
-export async function updateLeadStage(id: string, stage: string) {
-  const res = await fetch(`${API_URL}/leads/${id}/stage`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
-    },
-    body: JSON.stringify({ stage }),
-  });
-  if (!res.ok) throw new Error('Failed to update stage');
-  return res.json();
-}
-
-function getToken() {
-  // Get from cookies or session (Supabase auth)
-  return 'token';
-}
-```
+**Time:** 30 min  
+**Acceptance:** Table in DB
 
 ---
 
-## Scope Changes (Finance Features Removed)
+**19.2 Social Discovery (Basic)**
+- [ ] Create `apps/api/src/social/social.service.ts`
+- [ ] Method: `discoverSocial(leadName: string)`
+  - Try username guess: `@{leadName.toLowerCase().replace(' ', '')}`
+  - Check if Instagram account exists (via scraping or API)
+  - Store handle if found
+- [ ] POST `/api/social/discover/:leadId`
 
-### What's IN Scope (Lead Management CRM)
-
-✅ **Business Finder**
-- Search businesses by location + category
-- Python scraper (Google Maps data)
-- Bulk import to CRM (up to 1000 leads/job)
-
-✅ **CRM Core**
-- Lead table view (sortable, filterable)
-- Lead detail view (editable fields)
-- Pipeline kanban (drag-drop stages)
-- Notes & activity timeline
-- Assign leads to team members
-
-✅ **Map View**
-- MapLibre GL JS with clustering
-- Filter by rating/stage/category
-- Territory overlay (zones for reps)
-- Route planning (multi-stop optimization)
-
-✅ **AI Lead Enrichment**
-- Review summary (sentiment analysis)
-- Sales insights (weaknesses, opportunities)
-- Smart cold email generation (Phase 2)
-
-✅ **Team Management**
-- Workspaces (multi-tenant)
-- User roles (owner, manager, rep)
-- Territory assignment
-
-### What's OUT of Scope
-
-❌ **Finance Simulator** (removed)
-- Transaction tracking
-- Cashflow forecasting
-- Multi-stakeholder simulation
-- Finance agents (owner/supplier/customer/bank)
-
-❌ **Market Analysis** (removed)
-- SWOT analysis
-- Competitive landscape
-- Market trend prediction
-
-❌ **Advanced Workflows** (deferred to Phase 2)
-- Email campaigns
-- Calendar sync
-- Voice transcription
-- Automation triggers
-
-**Focus:** We're building a **pure lead generation CRM**, not a finance tool. This aligns with CONTEXT.md's core value prop: "Google Maps + Apollo.io, but mapped."
+**Time:** 3 hours  
+**Acceptance:** Can discover Instagram handle
 
 ---
 
-## Timeline Summary (Focused Scope)
+**19.3 Apify Integration (Deep Enrichment)**
+- [ ] Sign up for Apify (free tier: $5 credit)
+- [ ] Create `lib/apify/client.ts`
+- [ ] Method: `enrichInstagram(username: string)`
+  - Call Apify Instagram Profile Scraper
+  - Return: followers, posts, bio, latest posts
+- [ ] POST `/api/social/enrich/:leadId` (deep)
+  - Call Apify
+  - Store full social data
 
-### Week 1: UI Foundation
-- shadcn/ui setup + Twenty-inspired design system
-- Data table component (TanStack Table)
-- Detail panel (slide-over)
-- Command menu (Cmd+K)
-- Dashboard layout (sidebar + top bar)
-
-### Week 2: CRM Features
-- Leads CRUD pages (table + detail)
-- Kanban pipeline (drag-drop stages)
-- Jobs (scraping) page + form
-- Dashboard overview (lead-focused widgets)
-- API integration (NestJS endpoints)
-
-### Week 3: Map Integration
-- Map rendering (MapLibre GL JS)
-- Clustering & filters (rating, stage, category)
-- Route planning (OSRM integration)
-- Territory overlay (draw polygons)
-
-**Total:** 3 weeks (faster without finance/market features)
-**Saved:** ~1-2 weeks by removing finance simulator scope
+**Time:** 2 hours  
+**Acceptance:** Deep enrich gets follower count
 
 ---
 
-## Resource Requirements
+**19.4 Social Tab (Lead Detail)**
+- [ ] Create `components/crm/detail-panel/social-tab.tsx`
+- [ ] Show:
+  - Instagram card (if found)
+    - Handle, follower count
+    - "View Profile" button (opens IG)
+    - "Refresh" button (re-scrape)
+  - Facebook card
+  - TikTok card
+  - LinkedIn card
+- [ ] "Discover Social" button (if not found yet)
 
-### Team
-- 1 full-stack developer (you) - 3 weeks full-time
-
-### Infrastructure
-- **No additional services** (same VPS, no Twenty container)
-- Cost: $0 extra (existing stack)
-
-### Dependencies (New)
-```bash
-pnpm add @tanstack/react-table @tanstack/react-query
-pnpm add @dnd-kit/core @dnd-kit/sortable
-pnpm add cmdk vaul recharts
-pnpm add react-hook-form date-fns
-pnpm add maplibre-gl @turf/turf supercluster
-```
+**Time:** 3 hours  
+**Acceptance:** Social profiles visible
 
 ---
 
-## Success Metrics
+### **Day 20: Social Features Polish**
 
-### Week 1
-- [ ] Data table works with 100 leads
-- [ ] Detail panel opens smoothly
-- [ ] Layout feels like modern CRM
+**20.1 Bulk Social Discovery**
+- [ ] In leads table, bulk action: "Discover Social Media"
+- [ ] POST `/api/social/discover/bulk` (batch)
+- [ ] Queue in BullMQ
+- [ ] Show progress
 
-### Week 2
-- [ ] Can create/edit/delete leads via UI
-- [ ] Kanban drag-drop updates DB
-- [ ] Scraping job triggers workers successfully
-
-### Week 3
-- [ ] Map renders 500+ leads with clustering
-- [ ] Route planning generates valid route
-- [ ] Full workflow: search → scrape → view on map → manage pipeline
-
-### Overall (Lead CRM Focus)
-- [ ] **Development velocity:** 3 weeks for full CRM (vs 4-5 weeks with finance features)
-- [ ] **Feature completeness:** 100% of lead management MVP done
-- [ ] **UX Quality:** Matches Twenty's polish (based on tester feedback)
-- [ ] **No scope creep:** Zero finance/market features built
-- [ ] **No vendor lock-in:** 100% our code, MIT licensed dependencies
+**Time:** 2 hours  
+**Acceptance:** Bulk social discovery works
 
 ---
 
-## Open Questions
-
-### 1. Should we copy Twenty's exact design?
-**Options:**
-- A) Match Twenty 1:1 (colors, spacing, layout)
-- B) Inspired by Twenty but with our brand colors
-
-**Recommendation:** **Option B** - Use Twenty's structure/UX patterns but customize colors to match your brand. This gives polish without looking like a clone.
-
-### 2. Real-time updates for scraping progress?
-**Options:**
-- A) Polling (every 5s refresh job status)
-- B) WebSocket (real-time push from NestJS)
-
-**Recommendation:** **Option A** for MVP (simpler), upgrade to Option B in Phase 2 if needed.
-
-### 3. Mobile responsive?
-**Question:** Should CRM work well on mobile or desktop-only?
-
-**Recommendation:** Desktop-first for MVP (CRM power users use desktop). Make responsive in Phase 2 post-launch.
-
----
-
-## Next Steps
-
-1. **Approve this revised plan**
-2. **Start Week 1, Day 1:**
-   ```bash
-   cd apps/web
-   pnpm dlx shadcn-ui@latest init
-   pnpm add @tanstack/react-table @tanstack/react-query
-   ```
-3. **I can scaffold:**
-   - [ ] `components/crm/data-table/` boilerplate
-   - [ ] Dashboard layout with sidebar
-   - [ ] Sample leads API endpoint in NestJS
-
-Want me to proceed with scaffolding? 🚀
-
----
-
-**Document Status:** V2 (Revised approach - built-in UI)  
-**Last Updated:** 2026-07-13  
-**Owner:** Engineering Team
+**20.2 Social Icons in Table**
+- [ ] Add "Social" column to leads table
+- [ ] Show icons: 📱 (IG), 📘 (FB), 🎵 (TikTok), 💼 (LinkedIn)
+- [ ] Tooltip on hover: "@warungsedap - 1.2

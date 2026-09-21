@@ -6,6 +6,10 @@ export const scrapeSchedules = pgTable('scrape_schedules', {
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
   category: text('category').notNull(),
   query: text('query').notNull(),
+  /** ISO-3166 alpha-2 country bias for the search; null = global. */
+  country: text('country'),
+  /** Lead source to run this schedule against; see LEAD_SOURCES in the worker. */
+  source: text('source').notNull().default('places'),
   limitPerRun: integer('limit_per_run').notNull().default(30),
   isActive: boolean('is_active').notNull().default(true),
   intervalMinutes: integer('interval_minutes').notNull().default(720),

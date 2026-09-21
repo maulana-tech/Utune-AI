@@ -1,29 +1,27 @@
-import { Worker, Queue } from 'bullmq';
-import { spawn } from 'child_process';
-import path from 'path';
+import { Worker } from 'bullmq';
 import { eq, sql, and, ilike } from 'drizzle-orm';
 import { db, leads, scrapeSchedules, jobs } from '@repo/db';
-
-const aiQueue = new Queue('orchestrated-ai-queue', {
-  connection: { url: process.env.REDIS_URL || 'redis://localhost:6379' },
-});
-
-const ourProduct =
-  'UTUNE AI — B2B lead intelligence platform. Kami menyediakan AI-powered lead scoring, financial simulation, market analysis, dan scraping otomatis untuk sales team B2B di Indonesia.';
+import { getLeadSource, type RawLead } from '../sources';
 
 export const startScrapeWorker = () => {
   const worker = new Worker(
     'scrape-map',
     async (job) => {
-      const { query, limit, workspaceId, scheduleId, jobId } = job.data as {
+      const { query, limit, workspaceId, scheduleId, jobId, country, source } = job.data as {
         query: string;
         limit: number;
         workspaceId: string;
         scheduleId?: string;
         jobId?: string;
+        country?: string;
+        source?: string;
       };
+      const sourceName = source ?? 'places';
 
-      console.log(`[Scrape] Starting scrape: query="${query}" limit=${limit}`);
+      console.log(
+        `[Scrape] Starting scrape: source=${sourceName} query="${query}" ` +
+          `limit=${limit} country=${country || 'global'}`,
+      );
 
       if (jobId) {
         await db
@@ -32,9 +30,9 @@ export const startScrapeWorker = () => {
           .where(eq(jobs.id, jobId));
       }
 
-      let rawResults: Record<string, unknown>[];
+      let rawResults: RawLead[];
       try {
-        rawResults = await runPythonScraper(query, limit);
+        rawResults = await getLeadSource(sourceName)({ query, limit, country, workspaceId });
       } catch (err) {
         if (jobId) {
           await db
@@ -63,9 +61,9 @@ export const startScrapeWorker = () => {
 
       let insertedCount = 0;
       for (const res of rawResults) {
-        const emails    = (res.emails    as string[]) || [];
-        const whatsapp  = (res.whatsapp  as string[]) || [];
-        const leadName  = (res.name      as string)?.trim() || '';
+        const emails    = res.emails   ?? [];
+        const whatsapp  = res.whatsapp ?? [];
+        const leadName  = res.name?.trim() || '';
 
         // Skip bad/placeholder names
         if (!leadName || leadName.length < 3 || BAD_NAMES.has(leadName.toLowerCase())) {
@@ -85,43 +83,26 @@ export const startScrapeWorker = () => {
           continue;
         }
 
-        const [inserted] = await db
-          .insert(leads)
-          .values({
-            workspaceId,
-            name:          leadName,
-            address:       (res.address  as string) || null,
-            phone:         (res.phone    as string) || null,
-            website:       (res.website  as string) || null,
-            emails:        emails.length   > 0 ? emails   : undefined,
-            whatsapp:      whatsapp.length > 0 ? whatsapp : undefined,
-            mapsUrl:       (res.maps_url  as string) || null,
-            lat:           (res.lat       as number) || null,
-            lng:           (res.lng       as number) || null,
-            category:      (res.category  as string) || query,
-          })
-          .returning();
-
-        const rawText = [
-          `Name: ${inserted.name}`,
-          inserted.address && `Address: ${inserted.address}`,
-          inserted.phone && `Phone: ${inserted.phone}`,
-          inserted.website && `Website: ${inserted.website}`,
-          emails.length > 0 && `Emails: ${emails.join(', ')}`,
-          inserted.category && `Category: ${inserted.category}`,
-        ]
-          .filter(Boolean)
-          .join('\n');
-
-        await aiQueue.add('orchestrated-workflow', {
-          leadId: inserted.id,
+        await db.insert(leads).values({
           workspaceId,
-          rawText,
-          ourProduct,
+          source:        sourceName,
+          name:          leadName,
+          address:       res.address  || null,
+          phone:         res.phone    || null,
+          website:       res.website  || null,
+          emails:        emails.length   > 0 ? emails   : undefined,
+          whatsapp:      whatsapp.length > 0 ? whatsapp : undefined,
+          mapsUrl:       res.sourceUrl || null,
+          lat:           res.lat       ?? null,
+          lng:           res.lng       ?? null,
+          category:      res.category  || query,
         });
+
         insertedCount++;
       }
-      console.log(`[Scrape] Inserted ${insertedCount} leads + queued AI for each`);
+      // Scoring is on-demand only (per-lead "Analyze" in the UI) — scraping never
+      // queues AI work, so a 500-lead scrape costs zero tokens.
+      console.log(`[Scrape] Inserted ${insertedCount} leads`);
 
       if (jobId) {
         await db
@@ -157,33 +138,3 @@ export const startScrapeWorker = () => {
 
   console.log('[Scrape] Worker started - listening to scrape-map');
 };
-
-function runPythonScraper(
-  query: string,
-  limit: number,
-): Promise<Record<string, unknown>[]> {
-  return new Promise((resolve, reject) => {
-    const scriptPath = path.resolve(__dirname, '../python/places_scraper.py');
-    const pythonExec = path.resolve(__dirname, '../../.venv/bin/python');
-    const proc = spawn(pythonExec, [scriptPath, query, String(limit)], {
-      env: { ...process.env },
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-    proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
-
-    proc.on('close', (code) => {
-      if (code !== 0) {
-        return reject(new Error(`Scraper exited ${code}: ${stderr.slice(0, 500)}`));
-      }
-      try {
-        resolve(JSON.parse(stdout));
-      } catch {
-        reject(new Error(`Failed to parse scraper output: ${stdout.slice(0, 200)}`));
-      }
-    });
-  });
-}

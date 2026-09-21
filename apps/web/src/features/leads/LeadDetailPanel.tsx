@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useMapStore } from '../map/store';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { X } from 'lucide-react';
+import { useLeadStore } from './store';
 import { apiUrl } from '@/lib/workspace';
 import { useWorkspaceId } from '@/lib/workspace-context';
-import { AddLeadButton, AddLeadDialog } from './AddLeadDialog';
+import { AddLeadDialog } from './AddLeadDialog';
 import { DeleteLeadButton } from './DeleteLeadDialog';
-import { LeadScoreView } from './LeadScoreView';
 import { GenerateEmailButton } from './GenerateEmailModal';
 
 interface AiInsight {
@@ -85,91 +85,10 @@ function renderInsightValue(val: unknown): React.ReactNode {
   return String(val);
 }
 
-// Helper function to check if lead is new (< 24 hours)
-function isNewLead(createdAt: string): boolean {
-  const created = new Date(createdAt).getTime();
-  const now = Date.now();
-  const hoursDiff = (now - created) / (1000 * 60 * 60);
-  return hoursDiff < 24;
-}
-
-// Helper function to format relative time
-function timeAgo(dateString: string): string {
-  const date = new Date(dateString);
-  const now = Date.now();
-  const seconds = Math.floor((now - date.getTime()) / 1000);
-
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
-}
-
-export function LeadsPanel({ leads: initialLeads }: { leads: Lead[] }) {
+/** Side panel for whichever lead is selected in the table. Renders nothing when none is. */
+export function LeadDetailPanel() {
   const workspaceId = useWorkspaceId();
-  const { selectedLeadId, setSelectedLeadId } = useMapStore();
-  const [query, setQuery] = useState('');
-  const [leads, setLeads] = useState<Lead[]>(initialLeads);
-  const [searching, setSearching] = useState(false);
-
-  const search = useCallback(async (q: string) => {
-    setSearching(true);
-    try {
-      const params = new URLSearchParams({ workspaceId, limit: '50' });
-      if (q.trim()) params.set('q', q.trim());
-      const res = await fetch(`${apiUrl()}/leads/search?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setLeads(data.results ?? data);
-      }
-    } catch {
-      // keep current list on network error
-    } finally {
-      setSearching(false);
-    }
-  }, [workspaceId]);
-
-  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-  const recentLeads = useMemo(
-    () => leads.filter((l) => Date.now() - new Date(l.createdAt).getTime() < SEVEN_DAYS_MS),
-    [leads],
-  );
-  const olderLeads = useMemo(
-    () => leads.filter((l) => Date.now() - new Date(l.createdAt).getTime() >= SEVEN_DAYS_MS),
-    [leads],
-  );
-
-  const [viewMode, setViewMode] = useState<'terbaru' | 'lama' | 'scores'>('terbaru');
-  const [scoredLeads, setScoredLeads] = useState<any[]>([]);
-  const [scoresLoading, setScoresLoading] = useState(false);
-
-  const displayedLeads = viewMode === 'terbaru' ? recentLeads : olderLeads;
-
-  useEffect(() => {
-    const timer = setTimeout(() => search(query), 300);
-    return () => clearTimeout(timer);
-  }, [query, search]);
-
-  // Auto-refresh every 15s so new scrape results appear without page reload
-  useEffect(() => {
-    const interval = setInterval(() => search(query), 15000);
-    return () => clearInterval(interval);
-  }, [query, search]);
-
-  useEffect(() => {
-    if (viewMode !== 'scores') return;
-    setScoresLoading(true);
-    fetch(`${apiUrl()}/leads/scores?workspaceId=${workspaceId}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setScoredLeads)
-      .catch(() => setScoredLeads([]))
-      .finally(() => setScoresLoading(false));
-  }, [viewMode, workspaceId, apiUrl]);
+  const { selectedLeadId, setSelectedLeadId } = useLeadStore();
 
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [insights, setInsights] = useState<AiInsight[]>([]);
@@ -181,25 +100,17 @@ export function LeadsPanel({ leads: initialLeads }: { leads: Lead[] }) {
   const [emailHistory, setEmailHistory] = useState<EmailHistory[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Fetch selected lead by ID so detail always works regardless of list limit/filters
-  const [selectedLeadDetail, setSelectedLeadDetail] = useState<Lead | null>(null);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   useEffect(() => {
     if (!selectedLeadId) {
-      setSelectedLeadDetail(null);
-      return;
-    }
-    const fromList = leads.find(l => l.id === selectedLeadId);
-    if (fromList) {
-      setSelectedLeadDetail(fromList);
+      setSelectedLead(null);
       return;
     }
     fetch(`${apiUrl()}/leads/${selectedLeadId}?workspaceId=${workspaceId}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setSelectedLeadDetail(data as Lead); })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setSelectedLead(data as Lead); })
       .catch(() => {});
   }, [selectedLeadId, workspaceId]);
-
-  const selectedLead = selectedLeadDetail;
 
   const fetchInsights = useCallback(async (leadId: string) => {
     setInsightsLoading(true);
@@ -257,68 +168,19 @@ export function LeadsPanel({ leads: initialLeads }: { leads: Lead[] }) {
     }
   };
 
+  if (!selectedLeadId) return null;
+
   return (
-    <div className="w-80 border-l border-border bg-background flex flex-col">
-      <div className="p-4 border-b border-border">
-        <div className="font-bold text-sm uppercase tracking-tight mb-3">
-          {selectedLead ? 'Lead Details' : `Leads (${leads.length})`}
-        </div>
-        {!selectedLead ? (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  placeholder="Search leads..."
-                  className="w-full px-3 py-1.5 text-xs border border-border bg-accent/20 focus:outline-none focus:border-primary placeholder:text-muted-foreground"
-                />
-                {searching && (
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-muted-foreground uppercase tracking-widest">
-                    ...
-                  </span>
-                )}
-              </div>
-              <AddLeadButton />
-            </div>
-            <div className="flex gap-1">
-              {(['terbaru', 'lama', 'scores'] as const).map((mode) => {
-                const active = viewMode === mode;
-                const count = mode === 'terbaru' ? recentLeads.length : mode === 'lama' ? olderLeads.length : null;
-                return (
-                  <button
-                    key={mode}
-                    onClick={() => setViewMode(mode)}
-                    className={`flex-1 h-7 flex items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-widest border transition-colors ${
-                      active
-                        ? 'bg-foreground text-background border-foreground'
-                        : 'bg-background text-muted-foreground border-border hover:border-primary/50'
-                    }`}
-                  >
-                    {mode}
-                    {count !== null && (
-                      <span
-                        className={`min-w-[16px] px-1 text-[8px] font-bold leading-4 text-center ${
-                          active ? 'bg-background/20 text-background' : 'bg-accent text-muted-foreground'
-                        }`}
-                      >
-                        {count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => setSelectedLeadId(null)}
-            className="text-[10px] uppercase font-bold text-muted-foreground hover:text-primary transition-colors text-left"
-          >
-            ← Back to list
-          </button>
-        )}
+    <aside className="w-[380px] shrink-0 border-l border-border bg-background flex flex-col">
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2">
+        <span className="font-bold text-sm uppercase tracking-tight">Lead Details</span>
+        <button
+          onClick={() => setSelectedLeadId(null)}
+          title="Close"
+          className="w-7 h-7 flex items-center justify-center border border-border hover:bg-accent transition-colors"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-auto p-2 flex flex-col gap-2">
@@ -554,66 +416,10 @@ export function LeadsPanel({ leads: initialLeads }: { leads: Lead[] }) {
               </div>
             </div>
           </div>
-        ) : viewMode === 'scores' ? (
-          scoresLoading ? (
-            <div className="p-8 text-center text-xs text-muted-foreground">Loading scores...</div>
-          ) : (
-            <LeadScoreView scores={scoredLeads} />
-          )
-        ) : displayedLeads.length === 0 ? (
-          <div className="p-8 text-center text-xs text-muted-foreground">
-            {query
-              ? 'No leads match your search.'
-              : viewMode === 'terbaru'
-              ? 'No leads from the last 7 days. Run a scrape to get started.'
-              : 'No older leads yet.'}
-          </div>
         ) : (
-          displayedLeads.map(lead => {
-            const isNew = isNewLead(lead.createdAt);
-            return (
-              <div
-                key={lead.id}
-                onClick={() => setSelectedLeadId(lead.id)}
-                className={`p-3 border transition-colors cursor-pointer group ${
-                  selectedLeadId === lead.id
-                    ? 'border-primary bg-accent/50'
-                    : isNew
-                      ? 'border-green-500/50 bg-green-50/10 hover:border-green-500'
-                      : 'border-border bg-accent/10 hover:border-primary/50'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <div className="font-bold text-sm leading-tight">{lead.name}</div>
-                  {isNew && (
-                    <span className="px-1.5 py-0.5 bg-green-500 text-white text-[8px] font-bold uppercase tracking-wider shrink-0 animate-pulse">
-                      NEW
-                    </span>
-                  )}
-                </div>
-                <div className="text-[10px] text-muted-foreground truncate">{lead.address}</div>
-                <div className="text-[9px] text-muted-foreground mt-1">
-                  Added {timeAgo(lead.createdAt)}
-                </div>
-                <div className="mt-3 flex gap-1 flex-wrap">
-                  {lead.emails && lead.emails.length > 0 && (
-                    <span className="px-1.5 py-0.5 bg-primary text-primary-foreground text-[9px] font-bold uppercase tracking-wider">Email</span>
-                  )}
-                  {lead.whatsapp && lead.whatsapp.length > 0 && (
-                    <span className="px-1.5 py-0.5 bg-green-600 text-white text-[9px] font-bold uppercase tracking-wider">WA</span>
-                  )}
-                  {lead.category && (
-                    <span className="px-1.5 py-0.5 border border-border text-muted-foreground text-[9px] font-bold uppercase tracking-wider">{lead.category}</span>
-                  )}
-                  {lead.mapsUrl && (
-                    <span className="px-1.5 py-0.5 border border-border text-muted-foreground text-[9px] font-bold uppercase tracking-wider">Maps</span>
-                  )}
-                </div>
-              </div>
-            );
-          })
+          <div className="p-8 text-center text-xs text-muted-foreground">Loading lead...</div>
         )}
       </div>
-    </div>
+    </aside>
   );
 }

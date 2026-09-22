@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { and, desc, eq } from 'drizzle-orm';
 import { db, scrapeSchedules, type NewScrapeSchedule } from '@repo/db';
+import { LeadSourceNameSchema } from '@repo/shared';
 import { JobsService } from '../jobs/jobs.service';
 
 export interface CreateScheduleDto {
@@ -9,6 +10,10 @@ export interface CreateScheduleDto {
   query: string;
   limitPerRun?: number;
   intervalMinutes?: number;
+  /** ISO-3166 alpha-2 country bias; omit for a global search. */
+  country?: string;
+  /** Lead source: 'places' (default) or 'apollo'. */
+  source?: string;
 }
 
 export interface UpdateScheduleDto {
@@ -17,6 +22,8 @@ export interface UpdateScheduleDto {
   limitPerRun?: number;
   intervalMinutes?: number;
   isActive?: boolean;
+  country?: string;
+  source?: string;
 }
 
 @Injectable()
@@ -38,6 +45,8 @@ export class ScrapeSchedulesService {
       query: dto.query,
       limitPerRun: dto.limitPerRun ?? 30,
       intervalMinutes: dto.intervalMinutes ?? 720,
+      country: dto.country?.toLowerCase() || null,
+      source: dto.source ?? 'places',
       isActive: true,
     };
     const [row] = await db.insert(scrapeSchedules).values(value).returning();
@@ -77,6 +86,9 @@ export class ScrapeSchedulesService {
       query: schedule.query,
       limit: schedule.limitPerRun,
       scheduleId: schedule.id,
+      country: schedule.country ?? undefined,
+      // The column is plain text; fall back to 'places' if it ever holds an unknown source.
+      source: LeadSourceNameSchema.catch('places').parse(schedule.source),
     });
 
     return { queued: true, jobId };

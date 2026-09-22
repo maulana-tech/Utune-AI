@@ -37,8 +37,17 @@ CONTACT_PATHS = ['/', '/contact', '/kontak', '/hubungi-kami', '/about', '/about-
 HTTP_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml',
-    'Accept-Language': 'id-ID,id;q=0.9,en;q=0.8',
+    'Accept-Language': 'en;q=0.9',
 }
+
+# Scrape-wide country bias, set from argv. '' = global search (no bias).
+REGION = ''
+# Places API response language. Indonesian only when explicitly scraping Indonesia.
+LANG = 'en'
+
+
+def _site_headers():
+    return {**HTTP_HEADERS, 'Accept-Language': f'{LANG};q=0.9,en;q=0.8'}
 
 
 # ── Email/WhatsApp enrichment from website ─────────────────────────────────────
@@ -48,7 +57,28 @@ def _is_valid_email(email: str) -> bool:
     return not any(j in e for j in JUNK_DOMAINS)
 
 
-def enrich_from_website(url: str) -> dict:
+def _normalize_wa(digits: str, dial: str) -> str:
+    """wa.me / api.whatsapp.com numbers are international by spec, so they are kept
+    as-is. A leading 0 means the site wrote a local number; that can only be fixed
+    when we know the lead's country dial code (taken from its Google phone number).
+    """
+    if not digits.startswith('0'):
+        return '+' + digits
+    if dial:
+        return '+' + dial + digits.lstrip('0')
+    # ponytail: unknown country -> drop it rather than guess and store a wrong number.
+    return ''
+
+
+def dial_code_from_phone(intl_phone: str) -> str:
+    """'+44 20 7946 0958' -> '44'. Google always puts a space after the country code."""
+    if not intl_phone.startswith('+'):
+        return ''
+    head = intl_phone[1:].split(' ', 1)[0]
+    return head if head.isdigit() else ''
+
+
+def enrich_from_website(url: str, dial: str = '') -> dict:
     parsed = urlparse(url)
     base = f'{parsed.scheme}://{parsed.netloc}'
     emails = set()
@@ -58,7 +88,7 @@ def enrich_from_website(url: str) -> dict:
         try:
             resp = http.get(
                 urljoin(base, path),
-                headers=HTTP_HEADERS,
+                headers=_site_headers(),
                 timeout=6,
                 impersonate='chrome',
             )
@@ -75,10 +105,9 @@ def enrich_from_website(url: str) -> dict:
                 if _is_valid_email(e):
                     emails.add(e)
             for m in WA_RE.finditer(html):
-                number = m.group(1).lstrip('0')
-                if not number.startswith('62'):
-                    number = '62' + number
-                whatsapp.add('+' + number)
+                number = _normalize_wa(m.group(1), dial)
+                if number:
+                    whatsapp.add(number)
 
             if emails and whatsapp:
                 break
@@ -89,11 +118,12 @@ def enrich_from_website(url: str) -> dict:
 
 
 def enrich_all_parallel(website_map: dict) -> dict:
+    """website_map: {lead_name: (url, dial_code)}"""
     results = {}
     with ThreadPoolExecutor(max_workers=6) as executor:
         futures = {
-            executor.submit(enrich_from_website, url): name
-            for name, url in website_map.items() if url
+            executor.submit(enrich_from_website, url, dial): name
+            for name, (url, dial) in website_map.items() if url
         }
         for future in as_completed(futures, timeout=50):
             name = futures[future]
@@ -117,8 +147,12 @@ def text_search(query: str, limit: int) -> list:
         params = {
             'query': query,
             'key': api_key,
-            'language': 'id',
+            'language': LANG,
         }
+        if REGION:
+            # ccTLD bias — ranks results inside that country first. Without it the
+            # search is global and ranked purely on the query text.
+            params['region'] = REGION
         if pagetoken:
             params['pagetoken'] = pagetoken
             time.sleep(2)  # Google requires delay for next_page_token
@@ -157,7 +191,7 @@ def get_place_details(place_id: str) -> dict:
     params = {
         'place_id': place_id,
         'key': api_key,
-        'language': 'id',
+        'language': LANG,
     }
 
     try:
@@ -176,6 +210,7 @@ def format_place(place: dict, details: dict, query: str) -> dict:
     name = place.get('name', '')
     address = place.get('formatted_address', details.get('address', ''))
     phone = details.get('formatted_phone_number') or details.get('international_phone_number') or ''
+    phone_intl = details.get('international_phone_number') or ''
     website = details.get('website') or ''
     lat = place.get('geometry', {}).get('location', {}).get('lat')
     lng = place.get('geometry', {}).get('location', {}).get('lng')
@@ -198,6 +233,7 @@ def format_place(place: dict, details: dict, query: str) -> dict:
         'name': name,
         'address': address,
         'phone': phone,
+        'phone_intl': phone_intl,
         'website': website,
         'maps_url': maps_url,
         'lat': lat,
@@ -210,15 +246,26 @@ def format_place(place: dict, details: dict, query: str) -> dict:
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
-def scrape_maps(query: str, limit: int):
-    """Main entry: search Google Places API, enrich websites for emails."""
+def scrape_maps(query: str, limit: int, region: str = ''):
+    """Main entry: search Google Places API, enrich websites for emails.
+
+    region: ISO-3166 alpha-2 country code to bias results to ('' = global).
+    """
+    global REGION, LANG
+    REGION = region
+    LANG = 'id' if region == 'id' else 'en'
+
     api_key = _get_api_key()
     if not api_key:
         print('[ERROR] GOOGLE_MAPS_API_KEY not set', file=sys.stderr)
         print(json.dumps([]))
         return
 
-    print(f'[Info] Searching Google Places API for "{query}" (limit={limit})...', file=sys.stderr)
+    print(
+        f'[Info] Searching Google Places API for "{query}" '
+        f'(limit={limit}, region={region or "global"}, language={LANG})...',
+        file=sys.stderr,
+    )
 
     # Step 1: Text Search
     places = text_search(query, limit)
@@ -237,7 +284,10 @@ def scrape_maps(query: str, limit: int):
         leads.append(lead)
 
     # Step 3: Enrich websites for emails/WhatsApp (parallel)
-    website_map = {r['name']: r['website'] for r in leads if r.get('website')}
+    website_map = {
+        r['name']: (r['website'], dial_code_from_phone(r.get('phone_intl', '')))
+        for r in leads if r.get('website')
+    }
     if website_map:
         print(f'[Info] Enriching {len(website_map)} websites for emails...', file=sys.stderr)
         enriched = enrich_all_parallel(website_map)
@@ -251,6 +301,7 @@ def scrape_maps(query: str, limit: int):
 
 
 if __name__ == '__main__':
-    query = sys.argv[1] if len(sys.argv) > 1 else 'coffeeshop jakarta'
+    query = sys.argv[1] if len(sys.argv) > 1 else 'coffee shop jakarta'
     limit = int(sys.argv[2]) if len(sys.argv) > 2 else 5
-    scrape_maps(query, limit)
+    region = (sys.argv[3].strip().lower() if len(sys.argv) > 3 else '')
+    scrape_maps(query, limit, region)

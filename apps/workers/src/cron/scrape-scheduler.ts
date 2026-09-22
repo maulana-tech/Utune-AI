@@ -86,6 +86,8 @@ async function tick() {
     query: schedule.query,
     limit: schedule.limitPerRun,
     scheduleId: schedule.id,
+    country: schedule.country ?? undefined,
+    source: schedule.source,
   });
 
   // Increment retry_count now; the worker will reset to 0 on success or keep incrementing on failure.

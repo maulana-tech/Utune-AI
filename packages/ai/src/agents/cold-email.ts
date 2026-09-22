@@ -50,7 +50,10 @@ ATURAN KRITIS:
 4. Tone profesional B2B
 5. Format plain text (tanpa HTML)
 6. Sertakan CTA yang spesifik dan rendah friction
-7. SEMUA output dalam Bahasa Indonesia`,
+7. BAHASA: tulis subject + body dalam bahasa bisnis yang dipakai di negara lead
+   (lihat address-nya). Indonesia -> Bahasa Indonesia; negara lain -> bahasa lokal
+   yang lazim dipakai untuk email bisnis, default English kalau ragu.
+   Field "reasoning" tetap Bahasa Indonesia (dibaca tim sales kami).`,
     },
     'standard',
   );

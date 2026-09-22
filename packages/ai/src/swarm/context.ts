@@ -4,16 +4,12 @@ import { SwarmContext } from './types';
 export function createSwarmContext(params: {
   workspaceId: string;
   leadId?: string;
-  simulationId?: string;
-  marketAnalysisId?: string;
   initialData?: Record<string, unknown>;
 }): SwarmContext {
   return {
     executionId: uuidv4(),
     workspaceId: params.workspaceId,
     leadId: params.leadId,
-    simulationId: params.simulationId,
-    marketAnalysisId: params.marketAnalysisId,
     agentOutputs: new Map(),
     data: params.initialData ?? {},
     startTime: Date.now(),

@@ -10,10 +10,9 @@ export default async function DashboardPage() {
   const allLeads = await db
     .select({
       id: leads.id,
+      source: leads.source,
       name: leads.name,
       address: leads.address,
-      lat: leads.lat,
-      lng: leads.lng,
       emails: leads.emails,
       whatsapp: leads.whatsapp,
       category: leads.category,

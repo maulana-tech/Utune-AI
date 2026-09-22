@@ -7,6 +7,32 @@ import Link from 'next/link';
 
 type ScrapeStatus = 'idle' | 'scraping' | 'done' | 'error';
 
+/**
+ * Countries offered as a search bias. '' = global (Google ranks on the query text
+ * alone, so "dentist Berlin" works without picking a country).
+ * Names come from Intl.DisplayNames — no country-name table to maintain.
+ */
+const COUNTRY_CODES = [
+  'ID', 'MY', 'SG', 'TH', 'VN', 'PH', 'IN', 'JP', 'KR', 'CN', 'HK', 'TW',
+  'AU', 'NZ', 'US', 'CA', 'MX', 'BR', 'GB', 'IE', 'DE', 'FR', 'NL', 'ES',
+  'IT', 'PT', 'SE', 'PL', 'CH', 'TR', 'AE', 'SA', 'EG', 'NG', 'ZA',
+];
+
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+
+/** Keep in sync with LEAD_SOURCES in apps/workers/src/sources/index.ts. */
+const SOURCES = [
+  { value: 'places', label: 'Google Places', hint: 'Physical businesses with phone, site, email' },
+  { value: 'apollo', label: 'Apollo (LinkedIn data)', hint: 'B2B companies via Composio' },
+  { value: 'apify', label: 'Apify', hint: 'Hosted actor — Maps data plus emails' },
+  { value: 'firecrawl', label: 'Firecrawl', hint: 'Web search — contacts off the site itself' },
+];
+
+const COUNTRIES = COUNTRY_CODES.map((code) => ({
+  code,
+  label: regionNames.of(code) ?? code,
+})).sort((a, b) => a.label.localeCompare(b.label));
+
 export function Topbar({ workspaceId }: { workspaceId: string }) {
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -14,6 +40,8 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
   const [status, setStatus] = useState<ScrapeStatus>('idle');
   const [statusMessage, setStatusMessage] = useState('');
   const [scrapeQuery, setScrapeQuery] = useState('');
+  const [country, setCountry] = useState('');
+  const [source, setSource] = useState('places');
 
   useEffect(() => {
     if (status === 'done' || status === 'error') {
@@ -38,7 +66,13 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
       const response = await fetch(`${apiUrl}/jobs/scrape`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: capturedQuery, limit: 10, workspaceId }),
+        body: JSON.stringify({
+          query: capturedQuery,
+          limit: 10,
+          workspaceId,
+          source,
+          ...(country ? { country: country.toLowerCase() } : {}),
+        }),
       });
 
       if (!response.ok) {
@@ -95,17 +129,42 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
 
   return (
     <header className="h-16 border-b border-border bg-background flex items-center justify-between px-6 shrink-0">
-      <form onSubmit={handleSearch} className="flex items-center gap-2 w-full max-w-md">
+      <form onSubmit={handleSearch} className="flex items-center gap-2 w-full max-w-3xl">
         <div className="relative w-full">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search leads (e.g. 'Coffee Shop Jakarta')..."
+            placeholder="Search leads worldwide (e.g. 'Coffee Shop Berlin')..."
             className="w-full bg-accent/50 border border-border h-10 pl-10 pr-4 text-sm focus:outline-none focus:border-primary transition-colors"
           />
         </div>
+        <select
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+          title={SOURCES.find((s) => s.value === source)?.hint}
+          className="h-10 shrink-0 max-w-[150px] bg-accent/50 border border-border px-2 text-[11px] focus:outline-none focus:border-primary transition-colors"
+        >
+          {SOURCES.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+          title="Bias results to a country — Global searches worldwide"
+          className="h-10 shrink-0 max-w-[130px] bg-accent/50 border border-border px-2 text-[11px] focus:outline-none focus:border-primary transition-colors"
+        >
+          <option value="">🌍 Global</option>
+          {COUNTRIES.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.label}
+            </option>
+          ))}
+        </select>
         <button
           disabled={loading}
           type="submit"
@@ -122,7 +181,7 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
             <span className="text-muted-foreground">
               Scraping{' '}
               <span className="font-bold text-foreground">"{scrapeQuery}"</span>
-              ...
+              {country ? ` in ${regionNames.of(country) ?? country}` : ' worldwide'}...
             </span>
           </div>
         )}

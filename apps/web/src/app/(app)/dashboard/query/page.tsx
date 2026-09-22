@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef } from 'react';
 import { Search, Loader2, ChevronDown, ChevronUp, ExternalLink, Terminal, MapPin } from 'lucide-react';
 import { useWorkspaceId } from '@/lib/workspace-context';
 import { apiUrl } from '@/lib/workspace';
-import { MapContainer } from '@/features/map/MapContainer';
-import { useMapStore } from '@/features/map/store';
+import { useLeadStore } from '@/features/leads/store';
 
 const EXAMPLES = [
   'Semua klinik gigi di Surabaya yang punya email',
@@ -46,7 +45,7 @@ export default function QueryPage() {
   const [error, setError] = useState<string | null>(null);
   const [sqlOpen, setSqlOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { selectedLeadId, setSelectedLeadId } = useMapStore();
+  const { selectedLeadId, setSelectedLeadId } = useLeadStore();
 
   const run = async (q: string) => {
     if (!q.trim()) return;
@@ -77,21 +76,11 @@ export default function QueryPage() {
     run(query);
   };
 
-  // Filter leads that have valid coordinates for the map
-  const mapLeads = useMemo(() => {
-    if (!result?.results) return [];
-    return result.results
-      .filter(l => l.lat != null && l.lng != null)
-      .map(l => ({ id: l.id, name: l.name, lat: l.lat, lng: l.lng }));
-  }, [result?.results]);
-
-  const hasMapData = mapLeads.length > 0;
-
   return (
     <div className="h-full flex overflow-hidden">
 
       {/* Left side — Query + Results */}
-      <div className={`flex-1 min-w-0 flex flex-col overflow-hidden ${hasMapData ? 'border-r border-border' : ''}`}>
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <div className="p-6 flex flex-col gap-4 overflow-y-auto flex-1">
 
           {/* Header */}
@@ -196,15 +185,10 @@ export default function QueryPage() {
               <div className="flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
                   <span className="font-bold text-foreground">{result.results.length}</span> lead{result.results.length !== 1 ? 's' : ''} ditemukan
-                  {hasMapData && (
-                    <span className="ml-2 text-muted-foreground">
-                      · <MapPin className="w-3 h-3 inline" /> {mapLeads.length} di peta
-                    </span>
-                  )}
                 </p>
                 {result.results.length > 0 && (
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest">
-                    {hasMapData ? 'Klik baris atau node di peta' : 'Klik baris untuk buka di Maps'}
+                    Klik baris untuk buka di Maps
                   </p>
                 )}
               </div>
@@ -323,12 +307,6 @@ export default function QueryPage() {
         </div>
       </div>
 
-      {/* Right side — Map */}
-      {hasMapData && (
-        <div className="hidden lg:block w-[420px] shrink-0">
-          <MapContainer leads={mapLeads} />
-        </div>
-      )}
     </div>
   );
 }

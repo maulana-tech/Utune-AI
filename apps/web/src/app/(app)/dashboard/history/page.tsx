@@ -19,8 +19,6 @@ type AgentLogRow = {
   durationMs: number | null;
   createdAt: Date | null;
   leadId: string | null;
-  simulationId: string | null;
-  marketAnalysisId: string | null;
   handoffFrom: string | null;
   parallelGroup: string | null;
   leadName: string | null;
@@ -40,8 +38,6 @@ async function getActivityHistory(workspaceId: string) {
       durationMs: agentLogs.durationMs,
       createdAt: agentLogs.createdAt,
       leadId: agentLogs.leadId,
-      simulationId: agentLogs.simulationId,
-      marketAnalysisId: agentLogs.marketAnalysisId,
       handoffFrom: agentLogs.handoffFrom,
       parallelGroup: agentLogs.parallelGroup,
       // Lead info
@@ -237,18 +233,6 @@ async function HistoryContent() {
                                 {log.leadCategory && (
                                   <span className="ml-2 text-gray-400">({log.leadCategory})</span>
                                 )}
-                              </p>
-                            )}
-
-                            {/* Context type */}
-                            {log.simulationId && (
-                              <p className="mt-1 text-xs text-blue-600">
-                                Finance Simulation
-                              </p>
-                            )}
-                            {log.marketAnalysisId && (
-                              <p className="mt-1 text-xs text-green-600">
-                                Market Analysis
                               </p>
                             )}
                           </div>

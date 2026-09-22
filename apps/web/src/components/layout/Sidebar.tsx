@@ -7,10 +7,7 @@ import { useState } from 'react';
 import {
   LayoutDashboard,
   Layers,
-  Wallet,
-  Globe,
   Clock,
-  BarChart2,
   Settings,
   Home,
   PanelLeft,
@@ -39,9 +36,6 @@ const NAV_ITEMS = [
     group: 'Intelligence',
     items: [
       { href: '/dashboard/query',    icon: Sparkles,  label: 'AI Query'        },
-      { href: '/dashboard/market',   icon: Globe,     label: 'Market Analysis' },
-      { href: '/dashboard/reports',  icon: BarChart2, label: 'Reports'         },
-      { href: '/dashboard/finance',  icon: Wallet,    label: 'Finance'         },
       { href: '/dashboard/history',  icon: History,   label: 'History'         },
     ],
   },

@@ -109,7 +109,10 @@ function ScheduleRow({ schedule: s }: { schedule: ScrapeSchedule }) {
       {/* Category + Query */}
       <div className="min-w-0">
         <div className="font-bold truncate">{s.category}</div>
-        <div className="font-mono text-[10px] text-muted-foreground truncate mt-0.5">{s.query}</div>
+        <div className="font-mono text-[10px] text-muted-foreground truncate mt-0.5">
+          {s.query}
+          <span className="ml-2 uppercase">{s.country ? `· ${s.country}` : '· 🌍 global'}</span>
+        </div>
       </div>
 
       {/* Interval */}

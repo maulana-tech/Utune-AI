@@ -1,6 +1,8 @@
 import type { LeadSourceFn } from './types';
 import { scrapePlaces } from './places';
 import { scrapeApollo } from './apollo';
+import { scrapeApify } from './apify';
+import { scrapeFirecrawl } from './firecrawl';
 
 /**
  * Lead sources, keyed by the `source` field on a scrape job.
@@ -9,6 +11,8 @@ import { scrapeApollo } from './apollo';
 export const LEAD_SOURCES: Record<string, LeadSourceFn> = {
   places: scrapePlaces,
   apollo: scrapeApollo,
+  apify: scrapeApify,
+  firecrawl: scrapeFirecrawl,
 };
 
 export function getLeadSource(name: string | undefined): LeadSourceFn {

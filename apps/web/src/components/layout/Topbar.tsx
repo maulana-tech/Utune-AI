@@ -24,6 +24,8 @@ const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 const SOURCES = [
   { value: 'places', label: 'Google Places', hint: 'Physical businesses with phone, site, email' },
   { value: 'apollo', label: 'Apollo (LinkedIn data)', hint: 'B2B companies via Composio' },
+  { value: 'apify', label: 'Apify', hint: 'Hosted actor — Maps data plus emails' },
+  { value: 'firecrawl', label: 'Firecrawl', hint: 'Web search — contacts off the site itself' },
 ];
 
 const COUNTRIES = COUNTRY_CODES.map((code) => ({

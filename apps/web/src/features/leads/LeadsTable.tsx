@@ -34,6 +34,8 @@ type SortKey = 'name' | 'country' | 'category' | 'pipelineStage' | 'createdAt';
 const SOURCE_LABELS: Record<string, string> = {
   places: 'Places',
   apollo: 'Apollo',
+  apify: 'Apify',
+  firecrawl: 'Firecrawl',
 };
 
 /** Google formats addresses as "street, city, country", so the tail is the country. */

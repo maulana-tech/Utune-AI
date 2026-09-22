@@ -99,13 +99,8 @@ Current tables:
 - `jobs` — scrape job queue metadata
 - `ai_insights` — AI-generated sales analysis per lead
 - `lead_scores` — final aggregated scores from lead-scoring pipeline
-- `agent_logs` — reasoning trace for all agent pipelines (shared; nullable FKs to leadId/simulationId/marketAnalysisId; `handoffFrom` + `parallelGroup` for swarm observability)
-- `simulations` — finance simulation rows (scenarioParams, cashflowForecast, riskLevel, status)
-- `transactions` — bookkeeping rows that seed finance simulations
-- `market_analyses` — market analysis runs (status enum: pending/running/completed/failed; riskLevel enum: low/medium/high/critical)
-- `market_data` — scraped market data points (source enum: google_maps/web_scrape/manual/news_feed/social; type enum tags each record)
-- `market_reports` — aggregated market insights
-- `swarm_runs` — 1 row per swarm workflow execution (executionId, workflowName, entryAgent, totalSteps, status; nullable FKs to leadId/simulationId/marketAnalysisId)
+- `agent_logs` — reasoning trace for the lead-scoring pipeline (nullable FK to leadId; `handoffFrom` + `parallelGroup` for swarm observability)
+- `swarm_runs` — 1 row per swarm workflow execution (executionId, workflowName, entryAgent, totalSteps, status; nullable FK to leadId)
 - `lead_notes` — free-text CRM notes per lead
 - `scrape_schedules` — recurring scrape configs (isActive, intervalMinutes, lastRunAt, retryCount/maxRetries) driven by the cron scheduler
 - `email_templates`, `email_sequences`, `email_outreach` — outreach templates, multi-step sequences + enrollments, and per-email send/track rows (`resendEmailId`, `status`, `scheduledFor`)
@@ -126,7 +121,7 @@ Current tables:
 
 **Fallback:** `generateTextWithFallback` / `generateObjectWithFallback` (`packages/ai/src/fallback.ts`) retry on the 8B NVIDIA model, but **only** for transient errors (500/503/timeout/ECONNRESET) — prompt and schema-validation errors rethrow. Prefer these over calling `generateText`/`generateObject` directly in agents.
 
-**Three multi-agent pipelines plus a Swarm runtime — all share the `agent_logs` table for reasoning transparency.**
+**One multi-agent pipeline plus a Swarm runtime — both log to `agent_logs` for reasoning transparency.**
 
 ### A. Lead-scoring pipeline — sequential, context-passing
 
@@ -149,81 +144,9 @@ POST /leads/:id/analyze → orchestrated-ai-queue → Orchestrator:
 → Logs to agent_logs → Writes to lead_scores
 ```
 
-### B. Finance simulation pipeline — parallel stakeholders + synthesizer
+### B. Swarm runtime — dynamic handoff architecture
 
-Inspired by fiswarm's swarm-intelligence cashflow forecasting. 4 stakeholder agents run **in parallel** (independent perspectives on the same scenario), then a synthesizer reconciles them into a unified forecast:
-
-```
-      ┌── Owner ────┐
-      ├── Supplier ─┤  (parallel)
-      ├── Customer ─┤
-      └── Bank ─────┘
-              │
-              ▼
-         Synthesizer  → cashflow forecast + risk level
-```
-
-1. **Owner Agent** — revenue strategy, margin, hiring, growth ambition
-2. **Supplier Agent** — supply chain cost pressure, lead time, inventory adequacy
-3. **Customer Agent** — price sensitivity, demand elasticity, churn
-4. **Bank Agent** — runway, debt service, credit recommendation
-5. **Synthesizer** — reconciles all 4 → produces monthly forecast + `risk_level` (low/medium/high/critical)
-
-Why parallel (vs the lead-scoring sequential pattern)? Finance perspectives are independent lenses on the same scenario — they reason better standalone, then the synthesizer reconciles disagreements. Parallel is also ~4× faster.
-
-Key files:
-- `packages/ai/src/finance-orchestrator.ts` — `runFinanceSimulation(input)` (Promise.all over 4 stakeholders, then synthesizer)
-- `packages/ai/src/agents/finance-sim/{owner,supplier,customer,bank,synthesizer}.ts`
-- `packages/ai/src/agents/finance-sim/_shared.ts` — common scenario-block renderer + rules
-- `packages/db/src/schema/simulations.ts` — simulation row (scenarioParams, cashflowForecast, riskLevel, status)
-- `packages/db/src/schema/transactions.ts` — bookkeeping rows that feed the data seed
-- `agent_logs.simulationId` (nullable FK to simulations) — same log table reused for both pipelines
-
-Workflow:
-```
-User triggers via POST /finance/simulations (NestJS)
-→ FinanceService creates simulations row (status=pending)
-→ JobsService.queueFinanceSimulation → finance-simulation-queue
-→ Worker (apps/workers/src/queues/finance-simulation.worker.ts):
-    1. Marks row 'running'
-    2. Builds FinanceDataSeed from recent transactions (last N months)
-    3. runFinanceSimulation(...)  — 4 parallel + 1 synthesizer
-    4. Logs each agent step to agent_logs
-    5. Writes monthly forecast + riskLevel back to simulations row, status='completed'
-```
-
-API surface (`apps/api/src/finance/finance.controller.ts`):
-- `POST /finance/transactions`, `GET /finance/transactions`, `DELETE /finance/transactions/:id`
-- `POST /finance/simulations` (triggers run), `GET /finance/simulations`, `GET /finance/simulations/:id` (returns simulation + full agent reasoning trace)
-
-### C. Market Analysis pipeline — parallel perspectives + synthesizer
-
-4 perspective agents run **in parallel**, then a synthesizer produces an opportunity score + positioning recommendation:
-
-```
-      ┌── Competitor ─┐
-      ├── Trend ──────┤  (parallel)
-      ├── Risk ───────┤
-      └── Demand ─────┘
-              │
-              ▼
-         Synthesizer  → opportunity score + risk level + positioning
-```
-
-Key files:
-- `packages/ai/src/market-orchestrator.ts` — `runMarketAnalysis(input)` (Promise.all over 4 agents, then synthesizer)
-- `packages/ai/src/agents/market-sim/{competitor,trend,risk,demand,synthesizer}.ts`
-- `packages/db/src/schema/market_analyses.ts` — analysis row (scenarioParams, opportunityScore, riskLevel, status)
-- `packages/db/src/schema/market_data.ts` — scraped market data that feeds the analysis
-
-API surface (`apps/api/src/market/market.controller.ts`):
-- `POST /market/data`, `GET /market/data`, `DELETE /market/data/:id`
-- `POST /market/scrape` — triggers market scrape worker
-- `POST /market/analyses`, `GET /market/analyses`, `GET /market/analyses/:id`
-
-### D. Swarm runtime — dynamic handoff architecture
-
-`packages/ai/src/swarm/` replaces the three hardcoded orchestrators above. It enables dynamic routing (agents decide who runs next), parallel fan-out, per-agent tool use, and per-agent model selection.
+`packages/ai/src/swarm/` replaces the hardcoded orchestrator above. It enables dynamic routing (agents decide who runs next), parallel fan-out, per-agent tool use, and per-agent model selection.
 
 Key abstractions:
 - `Swarm` class (`run-loop.ts`) — main execution loop; calls `generateObject`, reads `_handoff`/`_parallel`/`_toolCall` control fields, routes accordingly
@@ -243,20 +166,16 @@ Key abstractions:
 
 Swarm agents live in `packages/ai/src/swarm/agents/*.swarm.ts`. Coordinator agents for parallel workflows:
 - `coordinator.swarm.ts` — lead-scoring coordinator (routes to extractor entry)
-- `finsim-coordinator.swarm.ts` — emits `_parallel` for `[owner, supplier, customer, bank]`
-- `market-coordinator.swarm.ts` — emits `_parallel` for `[competitor, trend, risk, demand]`
 
 Swarm workflows in `packages/ai/src/swarm/workflows/*.workflow.ts`:
 - `lead-scoring.workflow.ts` → `runLeadScoringSwarm(input)`
-- `finance-simulation.workflow.ts` → `runFinanceSimulationSwarm(input)` — entry: `finsim-coordinator`
-- `market-analysis.workflow.ts` → `runMarketAnalysisSwarm(input)` — entry: `market-coordinator`
 
 `MAX_SWARM_ITERATIONS` in `types.ts` guards against infinite loops.
 
-Toggle via `USE_SWARM_AGENTS=true` env var — all 3 workers fall back to legacy orchestrators when unset.
+Toggle via `USE_SWARM_AGENTS=true` env var — the worker falls back to the legacy orchestrator when unset.
 
 **DB observability (written per-run when swarm is active):**
-- `swarm_runs` table — 1 row per workflow run (executionId, workflowName, entryAgent, totalSteps, status, nullable FKs to leadId/simulationId/marketAnalysisId)
+- `swarm_runs` table — 1 row per workflow run (executionId, workflowName, entryAgent, totalSteps, status, nullable FK to leadId)
 - `agent_logs.handoffFrom` — which agent handed off to this one
 - `agent_logs.parallelGroup` — set for parallel fan-out agents
 
@@ -271,17 +190,11 @@ See `COMPETITION.md` for the lead-scoring architecture explanation.
 **Queues:**
 - `scrape-map` — triggers Python scraper for lead extraction
 - `orchestrated-ai-queue` — runs lead-scoring multi-agent pipeline
-- `finance-simulation-queue` — runs finance multi-agent simulation pipeline
-- `market-analysis-queue` — runs market analysis multi-agent pipeline
-- `market-scrape-queue` — triggers market data scraping
 
 **Workers** (`apps/workers/src/queues/`):
 - `scrape.worker.ts` — spawns Python scraper, writes leads to DB
 - `ai.worker.ts` — runs AI agents per lead, writes `ai_insights`
 - `orchestrated-ai.worker.ts` — runs lead-scoring pipeline
-- `finance-simulation.worker.ts` — runs finance simulation pipeline
-- `market-analysis.worker.ts` — runs market analysis pipeline
-- `market-scrape.worker.ts` — runs market data scraping
 
 **Cron schedulers** (`apps/workers/src/cron/`, started from `apps/workers/src/index.ts` alongside the queue workers — both run in the single `workers` process):
 - `scrape-scheduler.ts` — every 15 min, picks **at most 1 due** `scrape_schedules` row and pushes it to `scrape-map` (deliberate throttle; don't "fix" it into a batch loop without thinking about scraper load)
@@ -300,6 +213,8 @@ See `COMPETITION.md` for the lead-scoring architecture explanation.
 - `types.ts` — `RawLead` (what a source returns) + `ScrapeRequest` (query, limit, country, workspaceId)
 - `places.ts` — Google Places via the Python scraper (`GOOGLE_MAPS_API_KEY`)
 - `apollo.ts` — Apollo company search through **Composio** (`APOLLO_ORGANIZATION_SEARCH`), needs `COMPOSIO_API_KEY` + an Apollo account connected for `COMPOSIO_USER_ID` (falls back to the workspace id)
+- `apify.ts` — Apify hosted actors, one sync HTTP call (`APIFY_TOKEN`, optional `APIFY_ACTOR_ID`; defaults to `compass/crawler-google-places`)
+- `firecrawl.ts` — Firecrawl `/v2/search` + markdown, contacts pulled by regex, no LLM (`FIRECRAWL_API_KEY`)
 - `index.ts` — `LEAD_SOURCES` map + `getLeadSource(name)`
 
 **Adding a source:** one file exporting a `LeadSourceFn`, one entry in `LEAD_SOURCES`, one value in `LeadSourceNameSchema` (`packages/shared/src/jobs.ts`). Nothing else changes — the worker, dedupe, job status and UI all read `source` generically.
@@ -308,12 +223,11 @@ Notes:
 - `@composio/core` is **ESM-only** and `apps/workers` compiles to CommonJS, so it is loaded with `await import(...)` inside `apollo.ts`. A static import fails to compile (TS1479).
 - Composio's own **LinkedIn toolkit has no company/people search** (posts, comments and ads only). Apollo is the searchable LinkedIn-derived database — do not go looking for a `LINKEDIN_SEARCH` tool.
 - `leads.mapsUrl` holds the source link for every source (a Google Maps URL for `places`, a LinkedIn company URL for `apollo`). <!-- ponytail: legacy column name, rename if a third source makes it confusing -->
-- `apps/workers/src/sources/apollo.check.ts` — assert-based check for the response parsing: `pnpm --filter workers exec tsx src/sources/apollo.check.ts`
+- `apps/workers/src/sources/apollo.check.ts` and `sources.check.ts` — assert-based checks for the response parsing: `pnpm --filter workers exec tsx src/sources/<file>.ts`
 
 **Python scrapers** (`apps/workers/src/python/`) — venv at `apps/workers/.venv/`, worker calls `.venv/bin/python` directly:
 - `places_scraper.py` — **what `scrape.worker.ts` actually spawns.** Google Places API based (needs `GOOGLE_MAPS_API_KEY`), enriches with phone/website/email/WhatsApp
 - `maps_scraper.py` — legacy `scrapling` headless-browser scraper, superseded by `places_scraper.py`
-- `market_scraper.py` — spawned by `market-scrape.worker.ts`
 
 ## Frontend (Next.js)
 
@@ -323,11 +237,11 @@ Notes:
 
 **Routes:**
 - Marketing landing: `/` and `/start` — route group `(marketing)` (Cofounder brand, smooth-scroll via Lenis)
-- Dashboard app — route group `(app)`: `/dashboard` (leads table + detail panel), `pipelines`, `reports`, `finance` (+ `finance/simulations/[id]`), `market` (+ `market/analyses/[id]`), `scrapes`, `scrape-schedules`, `query` (NL→SQL assistant), `history`, `settings`
+- Dashboard app — route group `(app)`: `/dashboard` (leads table + detail panel), `pipelines`, `scrapes`, `scrape-schedules`, `query` (NL→SQL assistant), `history`, `settings`
 - Auth: `/login` — route group `(auth)`; `/auth/callback` route handler
 - Next route handlers: `/api/leads/[id]/stage`, `/api/webhooks/resend` (Resend delivery/open/click events)
 
-**Feature folders:** `apps/web/src/features/{leads,dashboard,finance,market,scrape,assistant}` — colocate feature UI + store there, not under `app/`.
+**Feature folders:** `apps/web/src/features/{leads,dashboard,scrape,assistant}` — colocate feature UI + store there, not under `app/`.
 
 **Auth:** Supabase Auth via `@supabase/supabase-js` + `@supabase/ssr`. `apps/web/src/middleware.ts` refreshes the session and gates `/dashboard/*` — this is the **only** auth enforcement in the stack.
 

@@ -43,8 +43,6 @@ export interface SwarmContext {
   executionId: string;
   workspaceId: string;
   leadId?: string;
-  simulationId?: string;
-  marketAnalysisId?: string;
   agentOutputs: Map<string, unknown>;
   data: Record<string, unknown>;
   startTime: number;

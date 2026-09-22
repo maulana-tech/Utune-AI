@@ -1,18 +1,14 @@
 import { pgTable, text, timestamp, uuid, jsonb, integer } from 'drizzle-orm/pg-core';
 import { leads } from './leads';
-import { simulations } from './simulations';
-import { marketAnalyses } from './market_analyses';
 import { workspaces } from './workspaces';
 
 export const agentLogs = pgTable('agent_logs', {
   id: uuid('id').defaultRandom().primaryKey(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
   leadId: uuid('lead_id').references(() => leads.id), // nullable for workspace-level strategy agent
-  simulationId: uuid('simulation_id').references(() => simulations.id), // nullable; set for finance-simulation runs
-  marketAnalysisId: uuid('market_analysis_id').references(() => marketAnalyses.id), // nullable; set for market-analysis runs
 
   // Agent identification
-  agentName: text('agent_name').notNull(), // extractor, finance, marketing, strategy, owner, supplier, customer, bank, synthesizer, competitor, trend, risk, demand
+  agentName: text('agent_name').notNull(), // extractor, finance, marketing, strategy
   agentRole: text('agent_role').notNull(), // describe the agent's purpose
 
   // Execution context

@@ -2,8 +2,6 @@ import { Module, Controller, Get } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { JobsModule } from './jobs/jobs.module';
 import { WorkflowsModule } from './workflows/workflows.module';
-import { FinanceModule } from './finance/finance.module';
-import { MarketModule } from './market/market.module';
 import { ScrapeSchedulesModule } from './scrape-schedules/scrape-schedules.module';
 import { LeadsModule } from './leads/leads.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
@@ -27,8 +25,6 @@ class HealthController {
     }),
     JobsModule,
     WorkflowsModule,
-    FinanceModule,
-    MarketModule,
     ScrapeSchedulesModule,
     LeadsModule,
     WorkspacesModule,

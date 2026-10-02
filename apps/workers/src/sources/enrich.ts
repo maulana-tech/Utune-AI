@@ -16,9 +16,11 @@ interface SiteContacts {
  *
  * Two layers, cheapest first:
  *   1. enrich_websites.py — plain HTTP, follows the site's own contact links. Free.
- *   2. Firecrawl /scrape (if FIRECRAWL_API_KEY) — renders JS, for whatever layer 1
- *      left empty. Costs credits, so capped at FIRECRAWL_ENRICH_MAX sites per job.
- *   3. ScrapeGraphAI /extract (if SGAI_API_KEY) — LLM reads the page, so it finds
+ *   2. camofox-browser (if CAMOFOX_URL) — self-hosted stealth Firefox, renders JS. Free,
+ *      but heavy on RAM, so capped at CAMOFOX_ENRICH_MAX sites per job.
+ *   3. Firecrawl /scrape (if FIRECRAWL_API_KEY) — renders JS, for whatever is still
+ *      empty. Costs credits, so capped at FIRECRAWL_ENRICH_MAX sites per job.
+ *   4. ScrapeGraphAI /extract (if SGAI_API_KEY) — LLM reads the page, so it finds
  *      contacts written in ways regex misses. ~5 credits/site, capped at
  *      SGAI_ENRICH_MAX. The LLM runs on ScrapeGraph's side: our token cost stays zero.
  */
@@ -43,11 +45,13 @@ export async function enrichFromWebsites(leads: RawLead[], jobSource: string): P
   }
 
   let out = mergeContacts(leads, found);
+  if (process.env.CAMOFOX_URL) out = await enrichWith('camofox', out, jobSource, CAMOFOX_ENRICH_MAX, camofoxContacts);
   if (process.env.FIRECRAWL_API_KEY) out = await enrichWith('Firecrawl', out, jobSource, FIRECRAWL_ENRICH_MAX, firecrawlContacts);
   if (process.env.SGAI_API_KEY) out = await enrichWith('ScrapeGraphAI', out, jobSource, SGAI_ENRICH_MAX, scrapegraphContacts);
   return out;
 }
 
+const CAMOFOX_ENRICH_MAX = Number(process.env.CAMOFOX_ENRICH_MAX ?? 30);
 const FIRECRAWL_ENRICH_MAX = Number(process.env.FIRECRAWL_ENRICH_MAX ?? 20);
 const SGAI_ENRICH_MAX = Number(process.env.SGAI_ENRICH_MAX ?? 10);
 
@@ -81,6 +85,49 @@ async function enrichWith(
     );
   }
   return out;
+}
+
+/**
+ * camofox-browser REST API: open a tab, read the accessibility snapshot (page text)
+ * plus links (mailto:/tel: hrefs), follow one contact link if needed, close the tab.
+ */
+async function camofoxContacts(url: string): Promise<SiteContacts> {
+  const base = process.env.CAMOFOX_URL!.replace(/\/$/, '');
+  const userId = 'utune-enrich';
+  const call = async (path: string, init?: RequestInit) => {
+    const res = await fetch(`${base}${path}`, { ...init, signal: AbortSignal.timeout(60_000) });
+    if (!res.ok) throw new Error(`camofox ${path.split('?')[0]} HTTP ${res.status}`);
+    return (await res.json()) as Record<string, unknown>;
+  };
+  const read = async (pageUrl: string) => {
+    const tab = await call('/tabs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, sessionKey: 'enrich', url: pageUrl }),
+    });
+    const tabId = String(tab.tabId);
+    try {
+      const snap = await call(`/tabs/${tabId}/snapshot?userId=${userId}`);
+      const links = await call(`/tabs/${tabId}/links?userId=${userId}&limit=500`);
+      const hrefs = (Array.isArray(links.links) ? links.links : [])
+        .map((l) => (typeof l === 'object' && l && 'url' in l ? String((l as { url: unknown }).url) : ''))
+        .filter(Boolean);
+      // Only mailto:/tel: hrefs join the text — other URLs carry long digit runs (Facebook ids) that read as phones.
+      const contactHrefs = hrefs.filter((h) => /^(mailto|tel):/i.test(h)).map((h) => h.replace(/^(mailto|tel):/i, ' '));
+      return { text: `${typeof snap.snapshot === 'string' ? snap.snapshot : ''}\n${contactHrefs.join('\n')}`, hrefs };
+    } finally {
+      await fetch(`${base}/tabs/${tabId}?userId=${userId}`, { method: 'DELETE' }).catch(() => undefined);
+    }
+  };
+
+  const home = await read(url);
+  let text = home.text;
+  if (!extractEmails(text).length) {
+    const contact = home.hrefs.find((h) => /contact|kontak|hubungi/i.test(h) && !h.startsWith('mailto:'));
+    if (contact) text += `\n${(await read(contact)).text}`;
+  }
+  const phone = extractPhone(text);
+  return { emails: extractEmails(text), whatsapp: [], phones: phone ? [phone] : [] };
 }
 
 /** ScrapeGraphAI v2 (the v1 api.scrapegraphai.com host is deprecated). */

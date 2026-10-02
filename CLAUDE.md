@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-B2B business finder and CRM platform. Global lead scraping via the Google Places API, stored in Postgres and worked as a filterable lead table + pipeline. AI analysis exists but is **opt-in per lead**, never automatic. See `CONTEXT.md` for full product context.
+B2B business finder and CRM platform — targets companies across industries (construction, oil & gas, brands, …), not just local SMEs. Global lead scraping through a fallback chain of sources (Google Places first, keyless OpenStreetMap/Wikidata last), stored in Postgres and worked as a filterable lead table + pipeline. AI analysis exists but is **opt-in per lead**, never automatic. See `CONTEXT.md` for full product context.
 
 ## Architecture
 
@@ -81,6 +81,8 @@ pnpm scraper:test           # scripts/test-email-scraping.ts
 3. Optional: `GOOGLE_API_KEY`, `SUMOPOD_API_KEY`, `ANTHROPIC_API_KEY` (extra AI providers), `AI_FAST_MODEL` / `AI_STANDARD_MODEL` / `AI_HEAVY_MODEL` (tier overrides), `EMAIL_PROVIDER` + Resend or SumoPod SMTP vars, `ALLOWED_ORIGINS` / `ALLOW_VERCEL_PREVIEWS` (API CORS allow-list, see `apps/api/src/main.ts`)
 
 Dev commands for API and workers load `.env` via `dotenv -e ../../.env`.
+
+API dev runs `nest start --watch --exec "node --import tsx"`: tsc compiles (Nest DI needs `emitDecoratorMetadata`, which plain `tsx watch` drops — every injected service becomes `undefined`), and the tsx loader resolves `@repo/ai`/`@repo/shared`, which export raw `.ts`. Plain `node dist/main.js` (`start:prod`) fails for the same reason.
 
 Env validation schema exists in `packages/shared/src/env.ts` but is not yet wired into app startup.
 
@@ -203,7 +205,7 @@ See `COMPETITION.md` for the lead-scoring architecture explanation.
 **Flow:**
 1. `POST /jobs/scrape` (`{ workspaceId, query, limit, country?, source? }`) → API pushes to `scrape-map`
 2. Worker resolves `source` through `LEAD_SOURCES` and runs it
-3. Scraper writes leads to DB
+3. Leads without contacts get their website crawled (`sources/enrich.ts`), then the worker writes them to DB
 4. Leads land in the table at `/dashboard` — no AI is queued
 
 ### Lead sources (pluggable)
@@ -215,18 +217,26 @@ See `COMPETITION.md` for the lead-scoring architecture explanation.
 - `apollo.ts` — Apollo company search through **Composio** (`APOLLO_ORGANIZATION_SEARCH`), needs `COMPOSIO_API_KEY` + an Apollo account connected for `COMPOSIO_USER_ID` (falls back to the workspace id)
 - `apify.ts` — Apify hosted actors, one sync HTTP call (`APIFY_TOKEN`, optional `APIFY_ACTOR_ID`; defaults to `compass/crawler-google-places`)
 - `firecrawl.ts` — Firecrawl `/v2/search` + markdown, contacts pulled by regex, no LLM (`FIRECRAWL_API_KEY`)
+- `outscraper.ts`, `serpapi.ts` — Google Maps data via paid APIs (`OUTSCRAPER_API_KEY`, `SERPAPI_API_KEY`)
+- `foursquare.ts`, `here.ts`, `tomtom.ts`, `yelp.ts` — POI APIs (`FOURSQUARE_API_KEY` service key on the new `places-api.foursquare.com` host, `HERE_API_KEY`, `TOMTOM_API_KEY`, `YELP_API_KEY`)
+- `overpass.ts` — keyless OpenStreetMap by **tag** inside a geocoded bbox ("dentist in bali"); public instances with fallback, `OVERPASS_URL` pins one
+- `osm.ts` — keyless OpenStreetMap by **name** via Nominatim; also exports `geocode()` used by `overpass`/`here`
+- `wikidata.ts` — keyless **B2B company** finder: companies by industry (P452) + country, nearly always with a website, no phone/email. Industry ids resolved via `wbsearchentities`, then one SPARQL query
+- `industries.ts` — B2B vocabulary (construction, oil & gas, mining, logistics, FMCG brands, …, with Indonesian aliases like `kontraktor`, `migas`, `sawit`) → Wikidata industry terms + OSM tags. `industryOf(what)` is also how `auto` decides a query is B2B
+- `auto.ts` + `AUTO_CHAIN` in `index.ts` — the **default source**. Tries every source whose key is set in order (places → apollo* → outscraper → serpapi → apify → foursquare → here → tomtom → yelp → firecrawl → wikidata* → overpass → osm; *only for B2B queries), moving on when one throws or returns 0; leads are tagged with the source that actually hit (`RawLead.source`), so `leads.source` is never `'auto'`
 - `index.ts` — `LEAD_SOURCES` map + `getLeadSource(name)`
 
-**Adding a source:** one file exporting a `LeadSourceFn`, one entry in `LEAD_SOURCES`, one value in `LeadSourceNameSchema` (`packages/shared/src/jobs.ts`). Nothing else changes — the worker, dedupe, job status and UI all read `source` generically.
+**Adding a source:** one file exporting a `LeadSourceFn`, one entry in `LEAD_SOURCES`, one value in `LeadSourceNameSchema` (`packages/shared/src/jobs.ts`), an option in `SOURCES` in `Topbar.tsx`, and a step in `AUTO_CHAIN` if it should be part of the fallback.
 
 Notes:
 - `@composio/core` is **ESM-only** and `apps/workers` compiles to CommonJS, so it is loaded with `await import(...)` inside `apollo.ts`. A static import fails to compile (TS1479).
 - Composio's own **LinkedIn toolkit has no company/people search** (posts, comments and ads only). Apollo is the searchable LinkedIn-derived database — do not go looking for a `LINKEDIN_SEARCH` tool.
 - `leads.mapsUrl` holds the source link for every source (a Google Maps URL for `places`, a LinkedIn company URL for `apollo`). <!-- ponytail: legacy column name, rename if a third source makes it confusing -->
-- `apps/workers/src/sources/apollo.check.ts` and `sources.check.ts` — assert-based checks for the response parsing: `pnpm --filter workers exec tsx src/sources/<file>.ts`
+- `apps/workers/src/sources/{apollo,sources,chain}.check.ts` — assert-based checks for the response parsing and the `auto` chain: `pnpm --filter workers exec tsx src/sources/<file>.ts`
 
 **Python scrapers** (`apps/workers/src/python/`) — venv at `apps/workers/.venv/`, worker calls `.venv/bin/python` directly:
 - `places_scraper.py` — **what `scrape.worker.ts` actually spawns.** Google Places API based (needs `GOOGLE_MAPS_API_KEY`), enriches with phone/website/email/WhatsApp
+- `enrich_websites.py` — reuses `places_scraper.enrich_from_website` (https-first, contact paths incl. `/en/contact-us`, emails + WhatsApp + phones from `tel:` links and "Telp:" text). Follows the site's own contact links before guessing paths, retries without cert verification on broken SSL chains. Called by `sources/enrich.ts` from the scrape worker for every non-`places` lead with a website but no email, so website-only sources (Wikidata, Apollo, OSM) still reach the Contacts page. `enrich.ts` then runs two optional paid layers on sites still empty, cheapest first: Firecrawl `/v2/scrape` (JS rendering, `FIRECRAWL_ENRICH_MAX`) and ScrapeGraphAI **v2** `/api/extract` at `v2-api.scrapegraphai.com` (`SGAI_API_KEY`, `SGAI_ENRICH_MAX`; the v1 `api.scrapegraphai.com` host is deprecated and fails the TLS handshake). ScrapeGraph's LLM runs on their side — our token cost for scraping stays zero
 - `maps_scraper.py` — legacy `scrapling` headless-browser scraper, superseded by `places_scraper.py`
 
 ## Frontend (Next.js)
@@ -237,11 +247,11 @@ Notes:
 
 **Routes:**
 - Marketing landing: `/` and `/start` — route group `(marketing)` (Cofounder brand, smooth-scroll via Lenis)
-- Dashboard app — route group `(app)`: `/dashboard` (leads table + detail panel), `pipelines`, `scrapes`, `scrape-schedules`, `query` (NL→SQL assistant), `history`, `settings`
+- Dashboard app — route group `(app)`: `/dashboard` (leads table + detail panel), `pipelines`, `contacts` (follow-up templates → WhatsApp/email/copy, logs to `lead_notes` with author `follow-up`; templates live in `email_templates`), `scrapes`, `scrape-schedules`, `query` (NL→SQL assistant), `history`, `settings`
 - Auth: `/login` — route group `(auth)`; `/auth/callback` route handler
 - Next route handlers: `/api/leads/[id]/stage`, `/api/webhooks/resend` (Resend delivery/open/click events)
 
-**Feature folders:** `apps/web/src/features/{leads,dashboard,scrape,assistant}` — colocate feature UI + store there, not under `app/`.
+**Feature folders:** `apps/web/src/features/{leads,dashboard,scrape,assistant,contacts}` — colocate feature UI + store there, not under `app/`.
 
 **Auth:** Supabase Auth via `@supabase/supabase-js` + `@supabase/ssr`. `apps/web/src/middleware.ts` refreshes the session and gates `/dashboard/*` — this is the **only** auth enforcement in the stack.
 

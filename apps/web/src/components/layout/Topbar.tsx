@@ -22,10 +22,36 @@ const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
 /** Keep in sync with LEAD_SOURCES in apps/workers/src/sources/index.ts. */
 const SOURCES = [
+  { value: 'auto', label: 'Auto (fallback)', hint: 'Tries every configured source in order, keyless OpenStreetMap last' },
   { value: 'places', label: 'Google Places', hint: 'Physical businesses with phone, site, email' },
+  { value: 'outscraper', label: 'Outscraper', hint: 'Google Maps data, paid API' },
+  { value: 'serpapi', label: 'SerpApi', hint: 'Google Maps results, paid API' },
+  { value: 'foursquare', label: 'Foursquare', hint: 'Global POI database' },
+  { value: 'here', label: 'HERE', hint: 'POI search, good Asia coverage' },
+  { value: 'tomtom', label: 'TomTom', hint: 'POI search' },
+  { value: 'yelp', label: 'Yelp', hint: 'Strong in US/EU, thin in Asia' },
   { value: 'apollo', label: 'Apollo (LinkedIn data)', hint: 'B2B companies via Composio' },
   { value: 'apify', label: 'Apify', hint: 'Hosted actor — Maps data plus emails' },
   { value: 'firecrawl', label: 'Firecrawl', hint: 'Web search — contacts off the site itself' },
+  { value: 'wikidata', label: 'Wikidata (companies)', hint: 'Free — established companies & brands by industry, with website' },
+  { value: 'overpass', label: 'OpenStreetMap (category)', hint: 'Free — "dentist in bali" style searches' },
+  { value: 'osm', label: 'OpenStreetMap (name)', hint: 'Free — Nominatim search' },
+];
+
+/** Native <datalist> suggestions — B2B industries the keyless sources understand (workers/src/sources/industries.ts). */
+const QUERY_SUGGESTIONS = [
+  'construction companies in Jakarta',
+  'oil and gas companies in Indonesia',
+  'mining companies in Kalimantan',
+  'manufacturing in Surabaya',
+  'logistics companies in Jakarta',
+  'FMCG brands in Indonesia',
+  'food and beverage distributor in Bandung',
+  'real estate developer in Bali',
+  'software companies in Singapore',
+  'palm oil companies in Indonesia',
+  'textile manufacturer in Bandung',
+  'dentist in Bali',
 ];
 
 const COUNTRIES = COUNTRY_CODES.map((code) => ({
@@ -41,7 +67,7 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
   const [statusMessage, setStatusMessage] = useState('');
   const [scrapeQuery, setScrapeQuery] = useState('');
   const [country, setCountry] = useState('');
-  const [source, setSource] = useState('places');
+  const [source, setSource] = useState('auto');
 
   useEffect(() => {
     if (status === 'done' || status === 'error') {
@@ -136,9 +162,15 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search leads worldwide (e.g. 'Coffee Shop Berlin')..."
+            list="scrape-suggestions"
+            placeholder="Industry + place, e.g. 'construction companies in Jakarta'"
             className="w-full bg-accent/50 border border-border h-10 pl-10 pr-4 text-sm focus:outline-none focus:border-primary transition-colors"
           />
+          <datalist id="scrape-suggestions">
+            {QUERY_SUGGESTIONS.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
         </div>
         <select
           value={source}

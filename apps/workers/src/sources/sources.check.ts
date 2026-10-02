@@ -5,6 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { toRawLead as apifyLead } from './apify';
+import { toRawLead as osmLead } from './osm';
 import { cleanName, extractEmails, extractPhone, toRawLead as firecrawlLead } from './firecrawl';
 
 // ── Apify ────────────────────────────────────────────────────────────────────
@@ -62,3 +63,26 @@ assert.equal(fc.category, 'coffee shop jakarta');
 assert.equal(fc.address, null);
 
 console.log('all ok');
+
+// ── OpenStreetMap (Nominatim) ────────────────────────────────────────────────
+const osm = osmLead({
+  place_id: 1,
+  osm_type: 'node',
+  osm_id: 42,
+  name: 'Toko Kopi Senja',
+  display_name: 'Toko Kopi Senja, Jalan Sudirman, Jakarta, Indonesia',
+  type: 'fast_food',
+  lat: '-6.2',
+  lon: '106.8',
+  extratags: { 'contact:phone': '+62 21 555 1234; +62 812 0000', email: 'halo@tokokopisenja.id', website: 'https://tokokopisenja.id' },
+});
+assert.equal(osm.name, 'Toko Kopi Senja');
+assert.equal(osm.address, 'Jalan Sudirman, Jakarta, Indonesia');
+assert.equal(osm.phone, '+62 21 555 1234');
+assert.deepEqual(osm.emails, ['halo@tokokopisenja.id']);
+assert.equal(osm.category, 'fast food');
+assert.equal(osm.sourceUrl, 'https://www.openstreetmap.org/node/42');
+assert.equal(osm.lat, -6.2);
+// the shapes that must not throw
+assert.equal(osmLead({}).name, '');
+assert.equal(osmLead({ extratags: null, lat: 'x' }).lat, null);

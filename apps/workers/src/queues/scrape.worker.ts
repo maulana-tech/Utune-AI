@@ -16,7 +16,7 @@ export const startScrapeWorker = () => {
         country?: string;
         source?: string;
       };
-      const sourceName = source ?? 'places';
+      const sourceName = source ?? 'auto';
 
       console.log(
         `[Scrape] Starting scrape: source=${sourceName} query="${query}" ` +
@@ -85,7 +85,7 @@ export const startScrapeWorker = () => {
 
         await db.insert(leads).values({
           workspaceId,
-          source:        sourceName,
+          source:        res.source ?? sourceName,
           name:          leadName,
           address:       res.address  || null,
           phone:         res.phone    || null,

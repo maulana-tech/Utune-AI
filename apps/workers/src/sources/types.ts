@@ -14,6 +14,8 @@ export interface RawLead {
   sourceUrl?: string | null;
   lat?: number | null;
   lng?: number | null;
+  /** Set by `auto` to the source that actually found this lead. */
+  source?: string;
 }
 
 export interface ScrapeRequest {
@@ -30,4 +32,31 @@ export type LeadSourceFn = (req: ScrapeRequest) => Promise<RawLead[]>;
 export function countryName(code: string | undefined): string | undefined {
   if (!code) return undefined;
   return new Intl.DisplayNames(['en'], { type: 'region' }).of(code.toUpperCase());
+}
+
+/**
+ * "dentist in bali" / "kopi di jakarta" → { what: 'dentist', where: 'bali' }.
+ * No location word → where = ''. Sources that need a place (Overpass, Yelp, HERE)
+ * fall back to the job's country or refuse.
+ */
+export function splitQuery(query: string): { what: string; where: string } {
+  const m = query.match(/^(.+?)\s+(?:in|di|near|around|dekat)\s+(.+)$/i);
+  return m ? { what: m[1].trim(), where: m[2].trim() } : { what: query.trim(), where: '' };
+}
+
+/** First non-empty string among the given values. */
+export function firstString(...values: unknown[]): string | null {
+  for (const v of values) if (typeof v === 'string' && v.trim()) return v.trim();
+  return null;
+}
+
+export function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/** Throw with the provider's own error text — sources share this so failures read the same in job logs. */
+export async function fetchJson(source: string, url: string, init?: RequestInit): Promise<unknown> {
+  const res = await fetch(url, init);
+  if (!res.ok) throw new Error(`${source} request failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+  return res.json();
 }

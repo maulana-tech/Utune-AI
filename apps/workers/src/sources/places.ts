@@ -5,9 +5,16 @@ import type { LeadSourceFn, RawLead, ScrapeRequest } from './types';
 /**
  * Google Places API via the Python scraper, which also crawls each business
  * website for emails / WhatsApp numbers.
+ * Needs: GOOGLE_MAPS_API_KEY. Without it, use the `auto` source to fall back to others.
  */
 export const scrapePlaces: LeadSourceFn = async ({ query, limit, country }: ScrapeRequest) => {
-  const rows = await runPythonScraper(query, limit, country);
+  if (!process.env.GOOGLE_MAPS_API_KEY) throw new Error('GOOGLE_MAPS_API_KEY is not set — cannot use the places source');
+  // 3rd arg = country bias; '' means global (scraper defaults to English results).
+  const rows = await runPython<Record<string, unknown>[]>('places_scraper.py', [
+    query,
+    String(limit),
+    (country ?? '').toLowerCase(),
+  ]);
 
   return rows.map((r): RawLead => ({
     name: String(r.name ?? '').trim(),
@@ -23,36 +30,32 @@ export const scrapePlaces: LeadSourceFn = async ({ query, limit, country }: Scra
   }));
 };
 
-function runPythonScraper(
-  query: string,
-  limit: number,
-  country?: string,
-): Promise<Record<string, unknown>[]> {
+/** Run a script from ../python with the worker's venv; stdout must be JSON. */
+export function runPython<T>(script: string, args: string[], stdin?: string): Promise<T> {
   return new Promise((resolve, reject) => {
-    const scriptPath = path.resolve(__dirname, '../python/places_scraper.py');
+    const scriptPath = path.resolve(__dirname, '../python', script);
     const pythonExec = path.resolve(__dirname, '../../.venv/bin/python');
-    // 3rd arg = country bias; '' means global (scraper defaults to English results).
-    const proc = spawn(
-      pythonExec,
-      [scriptPath, query, String(limit), (country ?? '').toLowerCase()],
-      { env: { ...process.env } },
-    );
+    const proc = spawn(pythonExec, [scriptPath, ...args], { env: { ...process.env } });
 
     let stdout = '';
     let stderr = '';
 
     proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
     proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+    proc.on('error', reject);
 
     proc.on('close', (code) => {
       if (code !== 0) {
-        return reject(new Error(`Scraper exited ${code}: ${stderr.slice(0, 500)}`));
+        // urllib3 prints an OpenSSL warning first — keep the tail, where the real error is.
+        return reject(new Error(`${script} exited ${code}: ${stderr.slice(-500)}`));
       }
       try {
-        resolve(JSON.parse(stdout));
+        resolve(JSON.parse(stdout) as T);
       } catch {
-        reject(new Error(`Failed to parse scraper output: ${stdout.slice(0, 200)}`));
+        reject(new Error(`Failed to parse ${script} output: ${stdout.slice(0, 200)}`));
       }
     });
+
+    if (stdin !== undefined) proc.stdin.end(stdin);
   });
 }

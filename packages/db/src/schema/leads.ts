@@ -5,7 +5,7 @@ export const leads = pgTable('leads', {
   id: uuid('id').defaultRandom().primaryKey(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
   // sourceJobId will be added after running: pnpm db:generate && pnpm db:migrate
-  /** Which lead source produced this row: 'places', 'apollo', ... */
+  /** Which lead source produced this row: 'places', 'apollo', 'osm', ... (never 'auto' — auto records the source that hit). */
   source: text('source').notNull().default('places'),
   name: text('name').notNull(),
   address: text('address'),

@@ -1,4 +1,4 @@
-import { countryName, type LeadSourceFn, type RawLead, type ScrapeRequest } from './types';
+import { countryName, splitQuery, type LeadSourceFn, type RawLead, type ScrapeRequest } from './types';
 
 /**
  * Apollo company search through Composio (`APOLLO_ORGANIZATION_SEARCH`).
@@ -25,12 +25,14 @@ export const scrapeApollo: LeadSourceFn = async ({
   const { Composio } = await import('@composio/core');
   const composio = new Composio({ apiKey });
 
-  const location = countryName(country);
+  // "construction company in jakarta" → keyword "construction company", location "jakarta".
+  const { what, where } = splitQuery(query);
+  const locations = [where, countryName(country)].filter((l): l is string => !!l);
   const result = await composio.tools.execute('APOLLO_ORGANIZATION_SEARCH', {
     userId: process.env.COMPOSIO_USER_ID || workspaceId,
     arguments: {
-      q_organization_keyword_tags: [query],
-      ...(location ? { organization_locations: [location] } : {}),
+      q_organization_keyword_tags: [what],
+      ...(locations.length ? { organization_locations: locations } : {}),
       per_page: Math.min(limit, 100),
       page: 1,
     },

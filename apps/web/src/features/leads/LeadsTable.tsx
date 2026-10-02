@@ -36,6 +36,15 @@ const SOURCE_LABELS: Record<string, string> = {
   apollo: 'Apollo',
   apify: 'Apify',
   firecrawl: 'Firecrawl',
+  osm: 'OSM',
+  overpass: 'OSM',
+  foursquare: 'Foursquare',
+  here: 'HERE',
+  tomtom: 'TomTom',
+  serpapi: 'SerpApi',
+  outscraper: 'Outscraper',
+  yelp: 'Yelp',
+  wikidata: 'Wikidata',
 };
 
 /** Google formats addresses as "street, city, country", so the tail is the country. */

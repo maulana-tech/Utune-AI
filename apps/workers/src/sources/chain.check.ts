@@ -15,6 +15,7 @@ import { toRawLead as outscraperLead } from './outscraper';
 import { toRawLead as yelpLead } from './yelp';
 import { buildSparql, toRawLeads as wikidataLeads } from './wikidata';
 import { industryOf } from './industries';
+import { mergeContacts } from './enrich';
 
 // ── query split ──────────────────────────────────────────────────────────────
 assert.deepEqual(splitQuery('dentist in bali'), { what: 'dentist', where: 'bali' });
@@ -135,3 +136,11 @@ await assert.rejects(runChain([{ source: 'paid', env: ['PAID_KEY'] }], sources, 
 
 checkChain().then(() => console.log('all ok'));
 
+// ── website enrichment merge ─────────────────────────────────────────────────
+const merged = mergeContacts(
+  [{ name: 'A', website: 'https://a.id', phone: null, emails: [] }, { name: 'B', phone: '+62 1', emails: ['b@b.id'] }, { name: 'C' }],
+  { '0': { emails: ['info@a.id'], whatsapp: ['+628123'], phones: ['(021) 555', '(021) 556'] }, '1': { emails: ['b@b.id', 'x@b.id'], whatsapp: [], phones: ['(021) 9'] } },
+);
+assert.deepEqual([merged[0].emails, merged[0].whatsapp, merged[0].phone], [['info@a.id'], ['+628123'], '(021) 555']);
+assert.deepEqual([merged[1].emails, merged[1].phone], [['b@b.id', 'x@b.id'], '+62 1']); // keeps existing phone, dedupes emails
+assert.deepEqual(merged[2], { name: 'C' }); // no website → untouched

@@ -1,4 +1,5 @@
-import { countryName, type LeadSourceFn, type RawLead, type ScrapeRequest } from './types';
+import { composioExecute } from './composio';
+import { countryName, splitQuery, type LeadSourceFn, type RawLead, type ScrapeRequest } from './types';
 
 /**
  * Apollo company search through Composio (`APOLLO_ORGANIZATION_SEARCH`).
@@ -16,32 +17,19 @@ export const scrapeApollo: LeadSourceFn = async ({
   limit,
   country,
   workspaceId,
+  env,
 }: ScrapeRequest) => {
-  const apiKey = process.env.COMPOSIO_API_KEY;
-  if (!apiKey) throw new Error('COMPOSIO_API_KEY is not set — cannot use the apollo source');
-
-  // @composio/core is ESM-only and this app compiles to CommonJS, so it has to be
-  // imported dynamically. Bonus: workers that never scrape Apollo never load it.
-  const { Composio } = await import('@composio/core');
-  const composio = new Composio({ apiKey });
-
-  const location = countryName(country);
-  const result = await composio.tools.execute('APOLLO_ORGANIZATION_SEARCH', {
-    userId: process.env.COMPOSIO_USER_ID || workspaceId,
-    arguments: {
-      q_organization_keyword_tags: [query],
-      ...(location ? { organization_locations: [location] } : {}),
-      per_page: Math.min(limit, 100),
-      page: 1,
-    },
-    dangerouslySkipVersionCheck: true,
+  // "construction company in jakarta" → keyword "construction company", location "jakarta".
+  const { what, where } = splitQuery(query);
+  const locations = [where, countryName(country)].filter((l): l is string => !!l);
+  const data = await composioExecute(env, workspaceId, 'apollo', 'APOLLO_ORGANIZATION_SEARCH', {
+    q_organization_keyword_tags: [what],
+    ...(locations.length ? { organization_locations: locations } : {}),
+    per_page: Math.min(limit, 100),
+    page: 1,
   });
 
-  if (!result.successful) {
-    throw new Error(`Apollo search failed: ${result.error ?? 'unknown error'}`);
-  }
-
-  return extractOrganizations(result.data).slice(0, limit).map(toRawLead);
+  return extractOrganizations(data).slice(0, limit).map(toRawLead);
 };
 
 /**

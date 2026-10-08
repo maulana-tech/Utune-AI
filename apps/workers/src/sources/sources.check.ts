@@ -5,7 +5,8 @@
  */
 import assert from 'node:assert/strict';
 import { toRawLead as apifyLead } from './apify';
-import { cleanName, extractEmails, extractPhone, toRawLead as firecrawlLead } from './firecrawl';
+import { toRawLead as osmLead } from './osm';
+import { cleanName, companyName, extractEmails, extractPhone, isListingPage, toRawLead as firecrawlLead } from './firecrawl';
 
 // ── Apify ────────────────────────────────────────────────────────────────────
 const maps = apifyLead({
@@ -62,3 +63,44 @@ assert.equal(fc.category, 'coffee shop jakarta');
 assert.equal(fc.address, null);
 
 console.log('all ok');
+
+// ── OpenStreetMap (Nominatim) ────────────────────────────────────────────────
+const osm = osmLead({
+  place_id: 1,
+  osm_type: 'node',
+  osm_id: 42,
+  name: 'Toko Kopi Senja',
+  display_name: 'Toko Kopi Senja, Jalan Sudirman, Jakarta, Indonesia',
+  type: 'fast_food',
+  lat: '-6.2',
+  lon: '106.8',
+  extratags: { 'contact:phone': '+62 21 555 1234; +62 812 0000', email: 'halo@tokokopisenja.id', website: 'https://tokokopisenja.id' },
+});
+assert.equal(osm.name, 'Toko Kopi Senja');
+assert.equal(osm.address, 'Jalan Sudirman, Jakarta, Indonesia');
+assert.equal(osm.phone, '+62 21 555 1234');
+assert.deepEqual(osm.emails, ['halo@tokokopisenja.id']);
+assert.equal(osm.category, 'fast food');
+assert.equal(osm.sourceUrl, 'https://www.openstreetmap.org/node/42');
+assert.equal(osm.lat, -6.2);
+// the shapes that must not throw
+assert.equal(osmLead({}).name, '');
+assert.equal(osmLead({ extratags: null, lat: 'x' }).lat, null);
+
+// ── Firecrawl listing filter + phone strictness ──────────────────────────────
+assert.ok(isListingPage({ url: 'https://www.linkedin.com/pulse/top-5-construction', title: 'Top 5 Construction Leaders in Indonesia' }));
+assert.ok(isListingPage({ url: 'https://en.wikipedia.org/wiki/Category:X', title: 'Category:Construction companies of Indonesia' }));
+assert.ok(isListingPage({ url: 'https://some-blog.id/x', title: 'Construction companies in Indonesia' }));
+assert.ok(!isListingPage({ url: 'https://ptlas.com/', title: 'PT Limas Anugrah Steel: Selamat Datang' }));
+assert.equal(cleanName('PT Limas Anugrah Steel: Selamat Datang'), 'PT Limas Anugrah Steel');
+assert.equal(extractPhone('Established 2021-07-16, NPWP 01.09-0259664'), null);
+assert.equal(extractPhone('Telp: (031) 749 6300'), '(031) 749 6300');
+assert.equal(extractPhone('Reach us on +62 31 749 6300 anytime'), '+62 31 749 6300');
+assert.ok(isListingPage({ url: 'https://www.tribhakti.com/indonesias-largest-mining-contractors/', title: 'Complete List of Indonesia Largest Mining Contractors' }));
+assert.ok(isListingPage({ url: 'https://www.michaelpage.co.id/jobs/construction', title: 'Construction jobs in Indonesia' }));
+assert.ok(isListingPage({ url: 'https://www.fitchratings.com/research/corporate-finance/x', title: 'Indonesia State-Owned Construction Companies' }));
+assert.ok(!isListingPage({ url: 'https://www.paramita.co.id/about-us.php', title: 'General Contractor Paramita Bangun Sarana' }));
+assert.ok(!isListingPage({ url: 'https://meinhardtgroup.com/offices/indonesia/', title: 'Indonesia' }));
+assert.equal(companyName('General Contractor based in Surabaya - PT Archikon', 'Archikon'), 'Archikon');
+assert.equal(companyName('General Contractor based in Surabaya - PT Archikon'), 'PT Archikon');
+assert.equal(companyName('Kontraktor Surabaya | Gudang Pabrik'), 'Kontraktor Surabaya');

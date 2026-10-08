@@ -22,6 +22,9 @@ TEXT_SEARCH_URL = 'https://maps.googleapis.com/maps/api/place/textsearch/json'
 DETAILS_URL = 'https://maps.googleapis.com/maps/api/place/details/json'
 
 EMAIL_RE = re.compile(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}', re.IGNORECASE)
+# "Telp: (021) 5290 6000" — corporate sites write numbers as text far more often than tel: links.
+PHONE_TEXT_RE = re.compile(r'(?:tel|telp|telepon|phone|call|hotline)\.?\s*[:.]?\s*(\+?\(?\d[\d\s().\-]{6,18}\d)', re.IGNORECASE)
+TEL_RE = re.compile(r'href=["\']tel:([+\d][\d\s().\-]{6,20})["\']', re.IGNORECASE)
 WA_RE = re.compile(r'(?:wa\.me/|api\.whatsapp\.com/send\?phone=|whatsapp\.com/send\?phone=)(\d{8,15})', re.IGNORECASE)
 
 JUNK_DOMAINS = (
@@ -30,9 +33,10 @@ JUNK_DOMAINS = (
     'twitter.com', 'instagram.com', 'youtube.com', 'whatsapp.com',
     'tiktok.com', 'linkedin.com', 'pngtree.com', 'localhost',
     'no-reply', 'noreply', '.png', '.jpg', '.gif', '.svg',
+    'glitchtip.com', 'bugsnag.com', 'u002f',  # error-tracker DSNs / JSON-escaped slashes in page scripts
 )
 
-CONTACT_PATHS = ['/', '/contact', '/kontak', '/hubungi-kami', '/about', '/about-us', '/contact-us', '/email', '/team']
+CONTACT_PATHS = ['/', '/contact', '/contact-us', '/kontak', '/hubungi-kami', '/en/contact', '/en/contact-us', '/id/kontak', '/about', '/about-us', '/email', '/team']
 
 HTTP_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36',
@@ -57,6 +61,13 @@ def _is_valid_email(email: str) -> bool:
     return not any(j in e for j in JUNK_DOMAINS)
 
 
+def _clean_phone(raw: str) -> str:
+    """'(021) 850-8510 (021' -> '(021) 850-8510'; '' when too short to be a number."""
+    number = re.sub(r'\s+', ' ', raw).strip()
+    number = re.sub(r'\s*\(\d*$', '', number)  # regex ran into the next number's area code
+    return number if len(re.sub(r'\D', '', number)) >= 8 else ''
+
+
 def _normalize_wa(digits: str, dial: str) -> str:
     """wa.me / api.whatsapp.com numbers are international by spec, so they are kept
     as-is. A leading 0 means the site wrote a local number; that can only be fixed
@@ -78,59 +89,105 @@ def dial_code_from_phone(intl_phone: str) -> str:
     return head if head.isdigit() else ''
 
 
+CONTACT_LINK_RE = re.compile(r'href=["\']([^"\'#]*(?:contact|kontak|hubungi|tentang|about)[^"\'#]*)["\']', re.IGNORECASE)
+MAX_PAGES = 8
+
+
+def _get(url: str, timeout: int = 10):
+    """GET that survives broken certificate chains — common on Indonesian corporate sites."""
+    try:
+        return http.get(url, headers=_site_headers(), timeout=timeout, impersonate='chrome')
+    except Exception as e:
+        if 'SSL' not in str(e) and 'certificate' not in str(e):
+            raise
+        return http.get(url, headers=_site_headers(), timeout=timeout, impersonate='chrome', verify=False)
+
+
+def _contact_links(html: str, base: str) -> list:
+    """Contact/about pages the site itself links to — beats guessing paths
+    (WIKA's is /en/contact-us/business-to-business)."""
+    host = urlparse(base).netloc
+    links = []
+    for href in CONTACT_LINK_RE.findall(html):
+        full = urljoin(base + '/', href)
+        if urlparse(full).netloc == host and full not in links:
+            links.append(full)
+    # contact pages before about pages
+    return sorted(links, key=lambda l: 0 if re.search(r'contact|kontak|hubungi', l, re.I) else 1)
+
+
 def enrich_from_website(url: str, dial: str = '') -> dict:
-    parsed = urlparse(url)
-    base = f'{parsed.scheme}://{parsed.netloc}'
+    parsed = urlparse(url if '://' in url else f'https://{url}')
     emails = set()
     whatsapp = set()
+    phones = []  # ordered: first number found is usually the main line
 
-    for path in CONTACT_PATHS:
+    # Homepage first, https before http — plenty of sites listed as http:// drop plain-http connections.
+    home = None
+    for base in (f'https://{parsed.netloc}', f'http://{parsed.netloc}'):
         try:
-            resp = http.get(
-                urljoin(base, path),
-                headers=_site_headers(),
-                timeout=6,
-                impersonate='chrome',
-            )
-            if resp.status_code != 200:
-                continue
+            home = _get(base, timeout=15)  # slow sites (PGN) need more than a few seconds
+            break
+        except Exception:
+            continue
+    if home is None:
+        return {'emails': [], 'whatsapp': [], 'phones': []}
+    base = f'{urlparse(str(home.url)).scheme}://{urlparse(str(home.url)).netloc}'
 
-            html = resp.text
-            for m in EMAIL_RE.finditer(html):
-                e = m.group(0).strip().lower()
-                if _is_valid_email(e):
-                    emails.add(e)
-            for m in re.finditer(r'mailto:([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})', html, re.IGNORECASE):
-                e = m.group(1).strip().lower()
-                if _is_valid_email(e):
-                    emails.add(e)
-            for m in WA_RE.finditer(html):
-                number = _normalize_wa(m.group(1), dial)
-                if number:
-                    whatsapp.add(number)
+    def scan(html: str):
+        for m in EMAIL_RE.finditer(html):
+            e = m.group(0).strip().lower()
+            if _is_valid_email(e):
+                emails.add(e)
+        for m in WA_RE.finditer(html):
+            number = _normalize_wa(m.group(1), dial)
+            if number:
+                whatsapp.add(number)
+        text = re.sub(r'<[^>]+>', ' ', html)
+        for m in [*TEL_RE.finditer(html), *PHONE_TEXT_RE.finditer(text)]:
+            number = _clean_phone(m.group(1))
+            if number and number not in phones:
+                phones.append(number)
 
-            if emails and whatsapp:
-                break
+    html = home.text if home.status_code == 200 else ''
+    scan(html)
+    pages = _contact_links(html, base) + [urljoin(base, p) for p in CONTACT_PATHS[1:]]
+    seen = {str(home.url).rstrip('/')}
+    for page in pages:
+        if (emails and (phones or whatsapp)) or len(seen) >= MAX_PAGES:
+            break
+        if page.rstrip('/') in seen:
+            continue
+        seen.add(page.rstrip('/'))
+        try:
+            resp = _get(page)
+            if resp.status_code == 200:
+                scan(resp.text)
         except Exception:
             continue
 
-    return {'emails': sorted(emails), 'whatsapp': sorted(whatsapp)}
+    return {'emails': sorted(emails), 'whatsapp': sorted(whatsapp), 'phones': phones[:3]}
 
 
-def enrich_all_parallel(website_map: dict) -> dict:
-    """website_map: {lead_name: (url, dial_code)}"""
+def enrich_all_parallel(website_map: dict, timeout: int = 50) -> dict:
+    """website_map: {key: (url, dial_code)} -> {key: {emails, whatsapp, phones}}.
+    Sites still running at `timeout` are dropped; finished ones are kept.
+    """
     results = {}
-    with ThreadPoolExecutor(max_workers=6) as executor:
-        futures = {
-            executor.submit(enrich_from_website, url, dial): name
-            for name, (url, dial) in website_map.items() if url
-        }
-        for future in as_completed(futures, timeout=50):
-            name = futures[future]
+    executor = ThreadPoolExecutor(max_workers=6)
+    futures = {
+        executor.submit(enrich_from_website, url, dial): key
+        for key, (url, dial) in website_map.items() if url
+    }
+    try:
+        for future in as_completed(futures, timeout=timeout):
             try:
-                results[name] = future.result()
+                results[futures[future]] = future.result()
             except Exception:
-                results[name] = {'emails': [], 'whatsapp': []}
+                pass
+    except TimeoutError:
+        print(f'[Warn] enrichment timed out after {timeout}s — kept {len(results)}/{len(futures)}', file=sys.stderr)
+    executor.shutdown(wait=False, cancel_futures=True)
     return results
 
 
@@ -165,8 +222,16 @@ def text_search(query: str, limit: int) -> list:
             break
 
         status = data.get('status')
+        if status == 'ZERO_RESULTS':
+            break
         if status != 'OK':
-            print(f'[WARN] Text search status: {status} — {data.get("error_message", "")}', file=sys.stderr)
+            message = f'Google Places {status}: {data.get("error_message", "")}'.strip()
+            if not results:
+                # Bad/denied key or quota on the first page is a failure, not "0 leads" —
+                # exit non-zero so the job fails loudly and `auto` moves to the next source.
+                print(f'[ERROR] {message}', file=sys.stderr)
+                sys.exit(1)
+            print(f'[WARN] {message} — keeping {len(results)} results', file=sys.stderr)
             break
 
         for place in data.get('results', []):
@@ -257,9 +322,9 @@ def scrape_maps(query: str, limit: int, region: str = ''):
 
     api_key = _get_api_key()
     if not api_key:
+        # Non-zero exit so the worker marks the job failed instead of "completed, 0 leads".
         print('[ERROR] GOOGLE_MAPS_API_KEY not set', file=sys.stderr)
-        print(json.dumps([]))
-        return
+        sys.exit(1)
 
     print(
         f'[Info] Searching Google Places API for "{query}" '

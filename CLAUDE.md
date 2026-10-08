@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-B2B business finder and CRM platform. Global lead scraping via the Google Places API, stored in Postgres and worked as a filterable lead table + pipeline. AI analysis exists but is **opt-in per lead**, never automatic. See `CONTEXT.md` for full product context.
+B2B business finder and CRM platform — targets companies across industries (construction, oil & gas, brands, …), not just local SMEs. Global lead scraping through a fallback chain of sources (Google Places first, keyless OpenStreetMap/Wikidata last), stored in Postgres and worked as a filterable lead table + pipeline. AI analysis exists but is **opt-in per lead**, never automatic. See `CONTEXT.md` for full product context.
 
 ## Architecture
 
@@ -30,7 +30,7 @@ packages/
 - All tenant data scoped to `workspaceId` — multi-tenant via single Postgres DB with row-level isolation
 - **Scraping never triggers AI.** `scrape.worker.ts` only writes lead rows; the lead-scoring pipeline runs only when someone calls `POST /leads/:id/analyze`. Do not re-add per-lead queueing to the scrape worker — it was removed on purpose to keep token cost at zero for large scrapes.
 - **No map.** MapLibre/react-map-gl were removed; `/dashboard` is a filterable, sortable leads table (`features/leads/LeadsTable.tsx`) with a detail side panel. Lead selection lives in `features/leads/store.ts`
-- **No API-side auth.** NestJS has no guards; `workspaceId` arrives as a query param / body field and is trusted. Auth is enforced only in `apps/web/src/middleware.ts` (Supabase session → redirect `/dashboard/*` to `/login`). Do not assume the API is protected.
+- **API is private, the web proxies it.** NestJS trusts `workspaceId` from the request, so it only accepts calls carrying `API_SECRET` (`apps/api/src/api-secret.guard.ts`, global `APP_GUARD`; `/health` open; no secret = open in dev, closed in production). Browser code calls `apiUrl()` = `/api/backend/*` (`apps/web/src/app/api/backend/[...path]/route.ts`), which requires a Supabase session, **overwrites** any `workspaceId` in query/body with the user's own, and forwards via `backendFetch` (`lib/backend.ts`, server-only `API_URL` + secret). Never point browser code at the API directly. `getWorkspaceId()` falls back to the demo workspace only outside production.
 
 ## Commands
 
@@ -81,6 +81,8 @@ pnpm scraper:test           # scripts/test-email-scraping.ts
 3. Optional: `GOOGLE_API_KEY`, `SUMOPOD_API_KEY`, `ANTHROPIC_API_KEY` (extra AI providers), `AI_FAST_MODEL` / `AI_STANDARD_MODEL` / `AI_HEAVY_MODEL` (tier overrides), `EMAIL_PROVIDER` + Resend or SumoPod SMTP vars, `ALLOWED_ORIGINS` / `ALLOW_VERCEL_PREVIEWS` (API CORS allow-list, see `apps/api/src/main.ts`)
 
 Dev commands for API and workers load `.env` via `dotenv -e ../../.env`.
+
+API dev runs `nest start --watch --exec "node --import tsx"`: tsc compiles (Nest DI needs `emitDecoratorMetadata`, which plain `tsx watch` drops — every injected service becomes `undefined`), and the tsx loader resolves `@repo/ai`/`@repo/shared`, which export raw `.ts`. Plain `node dist/main.js` (`start:prod`) fails for the same reason.
 
 Env validation schema exists in `packages/shared/src/env.ts` but is not yet wired into app startup.
 
@@ -203,7 +205,7 @@ See `COMPETITION.md` for the lead-scoring architecture explanation.
 **Flow:**
 1. `POST /jobs/scrape` (`{ workspaceId, query, limit, country?, source? }`) → API pushes to `scrape-map`
 2. Worker resolves `source` through `LEAD_SOURCES` and runs it
-3. Scraper writes leads to DB
+3. Leads without contacts get their website crawled (`sources/enrich.ts`), then the worker writes them to DB
 4. Leads land in the table at `/dashboard` — no AI is queued
 
 ### Lead sources (pluggable)
@@ -212,21 +214,33 @@ See `COMPETITION.md` for the lead-scoring architecture explanation.
 
 - `types.ts` — `RawLead` (what a source returns) + `ScrapeRequest` (query, limit, country, workspaceId)
 - `places.ts` — Google Places via the Python scraper (`GOOGLE_MAPS_API_KEY`)
-- `apollo.ts` — Apollo company search through **Composio** (`APOLLO_ORGANIZATION_SEARCH`), needs `COMPOSIO_API_KEY` + an Apollo account connected for `COMPOSIO_USER_ID` (falls back to the workspace id)
+- `apollo.ts` — Apollo company search through **Composio** (`APOLLO_ORGANIZATION_SEARCH`), needs `COMPOSIO_API_KEY` + an active Apollo connection in that Composio project. The Composio user id is `COMPOSIO_USER_ID` if set, else looked up from the active connections (dashboard/playground connections get ids like `pg-test-…`). **Apollo's Free plan blocks this endpoint (403 `API_INACCESSIBLE`)** — needs a paid Apollo plan
 - `apify.ts` — Apify hosted actors, one sync HTTP call (`APIFY_TOKEN`, optional `APIFY_ACTOR_ID`; defaults to `compass/crawler-google-places`)
-- `firecrawl.ts` — Firecrawl `/v2/search` + markdown, contacts pulled by regex, no LLM (`FIRECRAWL_API_KEY`)
+- `firecrawl.ts` — Firecrawl `/v2/search` + markdown, contacts pulled by regex, no LLM (`FIRECRAWL_API_KEY`). Drops listing pages (`isListingPage`: LinkedIn/Wikipedia/directories, "Top 5…"/"companies in…" titles); phones only from `tel:`, a "Tel/Telp:" label, or `+`-international format
+- `outscraper.ts`, `serpapi.ts` — Google Maps data via paid APIs (`OUTSCRAPER_API_KEY`, `SERPAPI_API_KEY`)
+- `foursquare.ts`, `here.ts`, `tomtom.ts`, `yelp.ts` — POI APIs (`FOURSQUARE_API_KEY` service key on the new `places-api.foursquare.com` host, `HERE_API_KEY`, `TOMTOM_API_KEY`, `YELP_API_KEY`)
+- `overpass.ts` — keyless OpenStreetMap by **tag** inside a geocoded bbox ("dentist in bali"); public instances with fallback, `OVERPASS_URL` pins one
+- `osm.ts` — keyless OpenStreetMap by **name** via Nominatim; also exports `geocode()` used by `overpass`/`here`
+- `wikidata.ts` — keyless **B2B company** finder: companies by industry (P452) + country, nearly always with a website, no phone/email. Industry ids resolved via `wbsearchentities`, then one SPARQL query. The country is resolved to its item (`ID` → `wd:Q252`, cached) first — a `wdt:P297 "ID"` join inside the main query made WDQS take 30-40s and time out. Coverage is small (~20 Indonesian construction companies)
+- `industries.ts` — B2B vocabulary (construction, oil & gas, mining, logistics, FMCG brands, …, with Indonesian aliases like `kontraktor`, `migas`, `sawit`) → Wikidata industry terms + OSM tags. `industryOf(what)` is also how `auto` decides a query is B2B
+- `auto.ts` + `AUTO_CHAIN` in `index.ts` — the **default source**. Tries every source whose key is set in order (places → apollo* → outscraper → serpapi → apify → foursquare → here → tomtom → yelp → wikidata* → firecrawl → overpass → osm; *only for B2B queries — Wikidata sits before Firecrawl because web search returns listicles for "X companies in Y"), collecting until `limit` is reached (each source is asked only for what is still missing; duplicates across sources dropped by normalised name / website host — `dedupeKeys`), moving on when one throws or returns 0; leads are tagged with the source that actually hit (`RawLead.source`), so `leads.source` is never `'auto'`
+- `reddit.ts` (Composio `REDDIT_SEARCH_ACROSS_SUBREDDITS`) and `social-apify.ts` (`twitter`, `threads`, `linkedin` via Apify actors `apidojo/tweet-scraper`, `futurizerush/meta-threads-scraper`, `harvestapi/linkedin-post-search`; override with `APIFY_<PLATFORM>_ACTOR`) — **social intent leads**: posts where someone states a need ("butuh jasa bikin aplikasi"). Lead = post author, `mapsUrl` = post link, `website` = author profile, post body in `leads.post_text` / `posted_at`. `social` runs every configured platform in parallel (`runAll` + `SOCIAL_STEPS`), splitting the limit and interleaving. Never part of `AUTO_CHAIN` (different kind of lead) and never website-enriched. **No intent filtering** — keyword search returns sellers' ads as often as buyers ("yang butuh jasa …, DM kami"); a regex filter was tried and dropped as too crude, the user triages manually. `intent.ts` only widens the search with buyer phrasings (`buyerQueries`: cari / rekomendasi / ada yang bisa …). Reddit via Composio needs `restrict_sr: true` (false = always empty), returns flat `{ posts: [...] }`, and only an `AND` of the need's words stays on topic. X goes through Apify because Composio has no managed X credentials; Reddit's keyless `.json` endpoints answer 403
+- `composio.ts` — `composioExecute()` shared by Apollo and Reddit: resolves the Composio user id from the toolkit's active connection and surfaces the provider error hidden in the SDK's `cause`
 - `index.ts` — `LEAD_SOURCES` map + `getLeadSource(name)`
 
-**Adding a source:** one file exporting a `LeadSourceFn`, one entry in `LEAD_SOURCES`, one value in `LeadSourceNameSchema` (`packages/shared/src/jobs.ts`). Nothing else changes — the worker, dedupe, job status and UI all read `source` generically.
+**BYOK (per-workspace keys):** Settings → API keys saves a workspace's own source keys to `workspace_api_keys` (AES-256-GCM via `SECRETS_KEY`; helpers + the `BYOK_KEYS` allow-list in `packages/db/src/secrets.ts`). The scrape worker builds `env = { ...process.env, ...getWorkspaceKeys(workspaceId) }` and passes it as `ScrapeRequest.env` — **sources must read keys from `req.env`, never `process.env`**. Only names in `BYOK_KEYS` can be overridden; infra (`CAMOFOX_URL`, `OVERPASS_URL`, DB/Redis) stays server-only. Plaintext keys never reach the client (Settings shows the last 4 chars).
+
+**Adding a source:** one file exporting a `LeadSourceFn`, one entry in `LEAD_SOURCES`, one value in `LeadSourceNameSchema` (`packages/shared/src/jobs.ts`), an option in `SOURCES` in `Topbar.tsx`, and a step in `AUTO_CHAIN` if it should be part of the fallback.
 
 Notes:
 - `@composio/core` is **ESM-only** and `apps/workers` compiles to CommonJS, so it is loaded with `await import(...)` inside `apollo.ts`. A static import fails to compile (TS1479).
 - Composio's own **LinkedIn toolkit has no company/people search** (posts, comments and ads only). Apollo is the searchable LinkedIn-derived database — do not go looking for a `LINKEDIN_SEARCH` tool.
 - `leads.mapsUrl` holds the source link for every source (a Google Maps URL for `places`, a LinkedIn company URL for `apollo`). <!-- ponytail: legacy column name, rename if a third source makes it confusing -->
-- `apps/workers/src/sources/apollo.check.ts` and `sources.check.ts` — assert-based checks for the response parsing: `pnpm --filter workers exec tsx src/sources/<file>.ts`
+- `apps/workers/src/sources/{apollo,sources,chain}.check.ts` — assert-based checks for the response parsing and the `auto` chain: `pnpm --filter workers exec tsx src/sources/<file>.ts`
 
 **Python scrapers** (`apps/workers/src/python/`) — venv at `apps/workers/.venv/`, worker calls `.venv/bin/python` directly:
 - `places_scraper.py` — **what `scrape.worker.ts` actually spawns.** Google Places API based (needs `GOOGLE_MAPS_API_KEY`), enriches with phone/website/email/WhatsApp
+- `enrich_websites.py` — reuses `places_scraper.enrich_from_website` (https-first, contact paths incl. `/en/contact-us`, emails + WhatsApp + phones from `tel:` links and "Telp:" text). Follows the site's own contact links before guessing paths, retries without cert verification on broken SSL chains. Called by `sources/enrich.ts` from the scrape worker for every non-`places` lead with a website but no email, so website-only sources (Wikidata, Apollo, OSM) still reach the Contacts page. `enrich.ts` then runs optional layers on sites still empty, cheapest first: a self-hosted [camofox-browser](https://github.com/jo-inc/camofox-browser) (`CAMOFOX_URL`, free; reads the accessibility snapshot + only `mailto:`/`tel:` hrefs — other link URLs carry digit runs that parse as phones), Firecrawl `/v2/scrape` (JS rendering, `FIRECRAWL_ENRICH_MAX`) and ScrapeGraphAI **v2** `/api/extract` at `v2-api.scrapegraphai.com` (`SGAI_API_KEY`, `SGAI_ENRICH_MAX`; the v1 `api.scrapegraphai.com` host is deprecated and fails the TLS handshake). ScrapeGraph's LLM runs on their side — our token cost for scraping stays zero
 - `maps_scraper.py` — legacy `scrapling` headless-browser scraper, superseded by `places_scraper.py`
 
 ## Frontend (Next.js)
@@ -237,19 +251,24 @@ Notes:
 
 **Routes:**
 - Marketing landing: `/` and `/start` — route group `(marketing)` (Cofounder brand, smooth-scroll via Lenis)
-- Dashboard app — route group `(app)`: `/dashboard` (leads table + detail panel), `pipelines`, `scrapes`, `scrape-schedules`, `query` (NL→SQL assistant), `history`, `settings`
+- Dashboard app — route group `(app)`: `/dashboard` (leads table + detail panel), `pipelines`, `contacts` (follow-up templates → WhatsApp/email/copy, logs to `lead_notes` with author `follow-up`; templates live in `email_templates`; a built-in Indonesian + English library of 12 B2B template types in `features/contacts/library.ts` — new workspaces are seeded with `LIBRARY_STARTERS`, the rest are added or edited-then-added from the Library panel. Keep template copy plain: no emoji, em dashes or filler), `scrapes`, `scrape-schedules`, `query` (NL→SQL assistant), `history`, `settings`
 - Auth: `/login` — route group `(auth)`; `/auth/callback` route handler
 - Next route handlers: `/api/leads/[id]/stage`, `/api/webhooks/resend` (Resend delivery/open/click events)
 
-**Feature folders:** `apps/web/src/features/{leads,dashboard,scrape,assistant}` — colocate feature UI + store there, not under `app/`.
+**Feature folders:** `apps/web/src/features/{leads,dashboard,scrape,assistant,contacts}` — colocate feature UI + store there, not under `app/`.
 
 **Auth:** Supabase Auth via `@supabase/supabase-js` + `@supabase/ssr`. `apps/web/src/middleware.ts` refreshes the session and gates `/dashboard/*` — this is the **only** auth enforcement in the stack.
 
 ## Email Outreach
 
-Two send paths, selected by `EMAIL_PROVIDER`:
-- **Resend** (`apps/api/src/email/email.service.ts`) — API-based, supports tracking; delivery/open/click events land on `apps/web/src/app/api/webhooks/resend/route.ts` and `apps/api/src/email/webhooks.controller.ts`, matched back to `email_outreach.resendEmailId`
-- **SumoPod SMTP** (`smtp.service.ts` in API, nodemailer again in `cron/email-scheduler.ts`) — simple send, no tracking
+**One mailer for everything:** `packages/db/src/mailer.ts` (`deliverEmail`, `sendAndRecord`, `sendDueEmails`), used by the API (`email/mail.service.ts`), the worker's `cron/email-scheduler.ts`, and the web Contacts page (`sendLeadEmail` server action). `EMAIL_PROVIDER` picks the transport:
+- **`gmail`** (default) — the workspace's Gmail via Composio REST (`GMAIL_SEND_EMAIL`). Uses `GMAIL_COMPOSIO_API_KEY` if set — the sending Gmail can live in a different Composio project from the Apollo/Reddit one — else `COMPOSIO_API_KEY`; both BYOK-able. Sends as the connected Gmail address; no tracking; ~500/day Gmail limit
+- **`resend`** — `RESEND_API_KEY` + `RESEND_FROM_EMAIL` on a verified domain (both BYOK-able). Delivery/open/click webhooks land on `apps/web/src/app/api/webhooks/resend/route.ts`; `email/email.service.ts` now only holds that webhook bookkeeping, matched on `email_outreach.resendEmailId` (which stores every provider's message id)
+- **`smtp`** (alias `sumopod`) — SumoPod SMTP via nodemailer (`SUMOPOD_SMTP_*`, `SUMOPOD_FROM_EMAIL`)
+
+Every email is sent as **designed HTML + a text/plain part**: `packages/db/src/email-html.ts` turns a template's plain-text body into a table-based, inline-styled layout in the style of site-using.vercel.app (cream page, serif headline with `_italic_`, mono `::label`, numbered `- items`, orange `[Button]({{cta_url}})`). Brand comes from `EMAIL_BRAND_*` / `EMAIL_CTA_URL` (falls back to the workspace name); a body that already is HTML is sent as-is. The same renderer powers the Contacts preview (`@repo/db/email-html` entry — pure, no DB import, safe in client bundles). Check: `pnpm --filter @repo/db exec tsx src/email-html.check.ts`.
+
+Every send is recorded in `email_outreach` (draft when `scheduledFor` is set, then queued → sent/failed). Keys are resolved per workspace (`process.env` + `getWorkspaceKeys`).
 
 `EmailModule` is **not** registered in `app.module.ts`; it reaches the HTTP layer through `LeadsModule` (`POST /leads/:id/email` drafts with the cold-email agent, `POST /leads/:id/send-email` sends). Templates and sequences have their own controllers (`templates.controller.ts`, `sequences.controller.ts`) — reachable only if their module is wired in, so check before assuming an endpoint is live.
 
@@ -282,13 +301,12 @@ Dockerfile installs Node 22 + Python 3 + venv for scraper.
 
 **Actual CI/CD** (`.github/workflows/ci-cd.yml`): on push to `main`, builds `api`/`workers`/`@repo/db`, then SSHes to a VPS (`VPS_HOST`/`VPS_USERNAME`/`VPS_SSH_KEY` secrets) to `git pull`, `pnpm install`, `pnpm turbo build --filter=api --filter=workers`, `pm2 restart all`. The web app deploys separately on Vercel (`vercel.json` builds from the repo root). Note the CI **does not run typecheck, lint, or the web build** — run the pre-commit checklist locally.
 
-See `DEPLOY.md` for the Vercel + SumoPod walkthrough (predates the VPS pipeline; treat the workflow file as the source of truth).
+See `DEPLOY.md` for the current walkthrough: VPS setup, Caddy HTTPS (`deploy/Caddyfile`), the full env-var table for VPS vs Vercel, Resend webhook + Supabase auth URLs. PM2 runs `node --import tsx -r dotenv/config` on the tsc output (`ecosystem.config.js`); Python deps are in `apps/workers/requirements.txt`; the deploy job also runs `pnpm --filter @repo/db push`.
 
 ## Not Yet Implemented
 
 **Do not assume these exist:**
 - Tests (no Vitest/Playwright/Supertest files; `pnpm test` is a no-op Turbo passthrough)
-- NestJS auth guards or `@Public()` decorator — every API endpoint is open, `workspaceId` is client-supplied
 - `nestjs-zod` for DTO validation
 - `@nestjs/throttler` rate limiting
 - `next-intl` i18n

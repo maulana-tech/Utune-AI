@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, leads } from '@repo/db';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { getWorkspaceId } from '@/lib/get-workspace';
 
 const VALID_STAGES = [
   'Prospecting',
@@ -42,10 +43,19 @@ export async function PATCH(
     );
   }
 
-  await db
+  let workspaceId: string;
+  try {
+    workspaceId = await getWorkspaceId();
+  } catch {
+    return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
+  }
+
+  const updated = await db
     .update(leads)
     .set({ pipelineStage: stage })
-    .where(eq(leads.id, id));
+    .where(and(eq(leads.id, id), eq(leads.workspaceId, workspaceId)))
+    .returning({ id: leads.id });
+  if (!updated.length) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
   return NextResponse.json({ ok: true });
 }

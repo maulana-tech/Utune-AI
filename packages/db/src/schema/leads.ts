@@ -5,7 +5,7 @@ export const leads = pgTable('leads', {
   id: uuid('id').defaultRandom().primaryKey(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
   // sourceJobId will be added after running: pnpm db:generate && pnpm db:migrate
-  /** Which lead source produced this row: 'places', 'apollo', ... */
+  /** Which lead source produced this row: 'places', 'apollo', 'osm', ... (never 'auto' — auto records the source that hit). */
   source: text('source').notNull().default('places'),
   name: text('name').notNull(),
   address: text('address'),
@@ -18,6 +18,9 @@ export const leads = pgTable('leads', {
   whatsapp: jsonb('whatsapp').$type<string[]>(),
   mapsUrl: text('maps_url'),
   pipelineStage: text('pipeline_stage').default('Prospecting'),
+  /** Social intent leads (reddit, twitter, threads, linkedin): the post that matched. */
+  postText: text('post_text'),
+  postedAt: timestamp('posted_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

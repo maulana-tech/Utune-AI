@@ -12,7 +12,7 @@ export interface CreateScheduleDto {
   intervalMinutes?: number;
   /** ISO-3166 alpha-2 country bias; omit for a global search. */
   country?: string;
-  /** Lead source: 'places' (default) or 'apollo'. */
+  /** Lead source, see LEAD_SOURCES in the worker. Default 'auto' = fallback chain. */
   source?: string;
 }
 
@@ -46,7 +46,7 @@ export class ScrapeSchedulesService {
       limitPerRun: dto.limitPerRun ?? 30,
       intervalMinutes: dto.intervalMinutes ?? 720,
       country: dto.country?.toLowerCase() || null,
-      source: dto.source ?? 'places',
+      source: dto.source ?? 'auto',
       isActive: true,
     };
     const [row] = await db.insert(scrapeSchedules).values(value).returning();
@@ -87,8 +87,8 @@ export class ScrapeSchedulesService {
       limit: schedule.limitPerRun,
       scheduleId: schedule.id,
       country: schedule.country ?? undefined,
-      // The column is plain text; fall back to 'places' if it ever holds an unknown source.
-      source: LeadSourceNameSchema.catch('places').parse(schedule.source),
+      // The column is plain text; fall back to 'auto' if it ever holds an unknown source.
+      source: LeadSourceNameSchema.catch('auto').parse(schedule.source),
     });
 
     return { queued: true, jobId };

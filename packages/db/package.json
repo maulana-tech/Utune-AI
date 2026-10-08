@@ -5,7 +5,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": "./dist/index.js",
+    "./email-html": "./dist/email-html.js"
   },
   "scripts": {
     "build": "tsc",
@@ -17,10 +18,12 @@
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
+    "nodemailer": "^8.0.10",
     "pg": "^8.13.0"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
+    "@types/nodemailer": "^8.0.0",
     "@types/pg": "^8.11.0",
     "dotenv-cli": "^11.0.0",
     "drizzle-kit": "^0.30.0",

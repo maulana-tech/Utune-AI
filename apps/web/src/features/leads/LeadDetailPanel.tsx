@@ -45,7 +45,18 @@ interface Lead {
   category: string | null;
   mapsUrl: string | null;
   phone: string | null;
+  website?: string | null;
+  source?: string;
+  postText?: string | null;
+  postedAt?: string | null;
   createdAt: string;
+}
+
+/** Where the "open" link points, by source — the column is still called mapsUrl. */
+function sourceLinkLabel(source: string | undefined): string {
+  if (!source || source === 'places' || source === 'apify') return 'Open in Google Maps';
+  if (['reddit', 'twitter', 'threads', 'linkedin'].includes(source)) return 'Open post';
+  return 'Open source';
 }
 
 function renderInsightValue(val: unknown): React.ReactNode {
@@ -244,18 +255,36 @@ export function LeadDetailPanel() {
               )}
               {selectedLead.mapsUrl && (
                 <div className="flex gap-2">
-                  <span className="text-muted-foreground w-16 shrink-0">Maps</span>
+                  <span className="text-muted-foreground w-16 shrink-0">Link</span>
                   <a
                     href={selectedLead.mapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-medium text-primary hover:underline truncate"
                   >
-                    Open in Google Maps ↗
+                    {sourceLinkLabel(selectedLead.source)} ↗
+                  </a>
+                </div>
+              )}
+              {selectedLead.postText && selectedLead.website && (
+                <div className="flex gap-2">
+                  <span className="text-muted-foreground w-16 shrink-0">Profile</span>
+                  <a href={selectedLead.website} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline truncate">
+                    Open profile ↗
                   </a>
                 </div>
               )}
             </div>
+
+            {selectedLead.postText && (
+              <div className="p-3 border border-border bg-accent/20">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                  Post
+                  {selectedLead.postedAt && ` · ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date(selectedLead.postedAt))}`}
+                </div>
+                <p className="text-xs leading-relaxed whitespace-pre-wrap max-h-60 overflow-y-auto">{selectedLead.postText}</p>
+              </div>
+            )}
 
             <div className="flex gap-2">
               <button

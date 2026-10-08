@@ -13,42 +13,44 @@ const DEFAULT_ACTOR = 'compass/crawler-google-places';
  * ponytail: run-sync caps at ~5 min, so a big `limit` can 408. Switch to the
  * async /runs endpoint + polling only when that actually starts happening.
  */
-export const scrapeApify: LeadSourceFn = async ({ query, limit, country }: ScrapeRequest) => {
-  const token = process.env.APIFY_TOKEN;
-  if (!token) throw new Error('APIFY_TOKEN is not set — cannot use the apify source');
+export const scrapeApify: LeadSourceFn = async ({ query, limit, country, env }: ScrapeRequest) => {
+  const token = env.APIFY_TOKEN;
+  if (!token) throw new Error('APIFY_TOKEN is not set — cannot use the apify source (add it in Settings → API keys)');
 
-  // Apify writes `username/actor` as `username~actor` in URLs.
-  const actor = (process.env.APIFY_ACTOR_ID || DEFAULT_ACTOR).replace('/', '~');
-
-  const res = await fetch(
-    `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?limit=${limit}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        searchStringsArray: [query],
-        maxCrawledPlacesPerSearch: limit,
-        language: 'en',
-        // Crawls each business website for emails — the whole point of using Apify
-        // over the Places API, which never returns an email.
-        scrapeContacts: true,
-        ...(country ? { countryCode: country.toLowerCase() } : {}),
-      }),
-    },
-  );
-
-  if (!res.ok) {
-    throw new Error(`Apify run failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
-  }
-
-  const items = (await res.json()) as unknown;
-  if (!Array.isArray(items)) return [];
+  const items = await runActor(token, env.APIFY_ACTOR_ID || DEFAULT_ACTOR, limit, {
+    searchStringsArray: [query],
+    maxCrawledPlacesPerSearch: limit,
+    language: 'en',
+    // Crawls each business website for emails — the whole point of using Apify
+    // over the Places API, which never returns an email.
+    scrapeContacts: true,
+    ...(country ? { countryCode: country.toLowerCase() } : {}),
+  });
 
   return items
     .slice(0, limit)
-    .map((item) => toRawLead(item as Record<string, unknown>))
+    .map((item) => toRawLead(item))
     .filter((lead) => lead.name);
 };
+
+/** One synchronous actor run → its dataset items. Shared by the social sources. */
+export async function runActor(
+  token: string,
+  actorId: string,
+  limit: number,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>[]> {
+  // Apify writes `username/actor` as `username~actor` in URLs.
+  const actor = actorId.replace('/', '~');
+  const res = await fetch(`https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?limit=${limit}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Apify ${actorId} failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+  const items = (await res.json()) as unknown;
+  return Array.isArray(items) ? items.filter((i): i is Record<string, unknown> => typeof i === 'object' && i !== null) : [];
+}
 
 /**
  * Actors do not share an output schema — Google Maps says `title`/`categoryName`,

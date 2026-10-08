@@ -3,6 +3,8 @@
 Run: python3 apps/workers/src/python/test_places_scraper.py
 Network deps are stubbed so this runs without the venv.
 """
+import contextlib
+import io
 import sys
 import types
 
@@ -12,6 +14,42 @@ sys.modules['curl_cffi'].requests = types.ModuleType('requests')
 sys.path.insert(0, __file__.rsplit('/', 1)[0])
 
 import places_scraper as p
+
+
+def test_clean_phone():
+    assert p._clean_phone('(021) 850-8510 (021') == '(021) 850-8510'
+    assert p._clean_phone('+62  21\n 722 1003') == '+62 21 722 1003'
+    assert p._clean_phone('021-12') == ''
+
+
+def test_junk_emails():
+    assert not p._is_valid_email('u002fb27606a02bbd430bbbae829049b3c564@app.glitchtip.com')
+    assert p._is_valid_email('corsec@ptpp.co.id')
+
+
+def test_phone_text_regex():
+    m = p.PHONE_TEXT_RE.search('Kantor Pusat Telp: (021) 5290 6000 Fax: (021) 1')
+    assert m and p._clean_phone(m.group(1)) == '(021) 5290 6000'
+
+
+class _Resp:
+    def __init__(self, data):
+        self._data = data
+
+    def json(self):
+        return self._data
+
+
+def test_text_search_fails_loudly_on_denied_key():
+    p.requests.get = lambda *a, **k: _Resp({'status': 'REQUEST_DENIED', 'error_message': 'The provided API key is invalid.'})
+    try:
+        with contextlib.redirect_stderr(io.StringIO()):
+            p.text_search('dentist', 5)
+        assert False, 'expected SystemExit'
+    except SystemExit as e:
+        assert e.code == 1
+    p.requests.get = lambda *a, **k: _Resp({'status': 'ZERO_RESULTS', 'results': []})
+    assert p.text_search('dentist', 5) == []
 
 
 def test_dial_code_from_phone():
@@ -38,12 +76,14 @@ def test_language_follows_region():
 
     scrape_maps sets the globals before it needs an API key, so it returns early here.
     """
-    import io
-    import contextlib
 
     for region, lang in [('id', 'id'), ('gb', 'en'), ('', 'en')]:
+        # No API key here, so scrape_maps exits non-zero after setting REGION/LANG.
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            p.scrape_maps('coffee shop', 1, region)
+            try:
+                p.scrape_maps('coffee shop', 1, region)
+            except SystemExit:
+                pass
         assert p.LANG == lang, f'{region} -> {p.LANG}'
         assert p.REGION == region
 
@@ -52,4 +92,8 @@ if __name__ == '__main__':
     test_dial_code_from_phone()
     test_normalize_wa()
     test_language_follows_region()
+    test_clean_phone()
+    test_junk_emails()
+    test_phone_text_regex()
+    test_text_search_fails_loudly_on_denied_key()
     print('all ok')

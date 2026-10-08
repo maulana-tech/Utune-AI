@@ -4,6 +4,7 @@ import { Search, Bell, User, Loader2, CheckCircle2, AlertCircle, X, ArrowRight }
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { apiUrl } from '@/lib/workspace';
 
 type ScrapeStatus = 'idle' | 'scraping' | 'done' | 'error';
 
@@ -22,10 +23,41 @@ const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
 /** Keep in sync with LEAD_SOURCES in apps/workers/src/sources/index.ts. */
 const SOURCES = [
+  { value: 'auto', label: 'Auto (fallback)', hint: 'Tries every configured source in order, keyless OpenStreetMap last' },
   { value: 'places', label: 'Google Places', hint: 'Physical businesses with phone, site, email' },
+  { value: 'outscraper', label: 'Outscraper', hint: 'Google Maps data, paid API' },
+  { value: 'serpapi', label: 'SerpApi', hint: 'Google Maps results, paid API' },
+  { value: 'foursquare', label: 'Foursquare', hint: 'Global POI database' },
+  { value: 'here', label: 'HERE', hint: 'POI search, good Asia coverage' },
+  { value: 'tomtom', label: 'TomTom', hint: 'POI search' },
+  { value: 'yelp', label: 'Yelp', hint: 'Strong in US/EU, thin in Asia' },
   { value: 'apollo', label: 'Apollo (LinkedIn data)', hint: 'B2B companies via Composio' },
   { value: 'apify', label: 'Apify', hint: 'Hosted actor — Maps data plus emails' },
   { value: 'firecrawl', label: 'Firecrawl', hint: 'Web search — contacts off the site itself' },
+  { value: 'social', label: 'Social posts (all)', hint: 'Posts where people state a need — e.g. "butuh jasa bikin aplikasi". Searches every connected platform' },
+  { value: 'reddit', label: 'Reddit posts', hint: 'Needs Composio with Reddit connected' },
+  { value: 'linkedin', label: 'LinkedIn posts', hint: 'Needs an Apify token' },
+  { value: 'twitter', label: 'X posts', hint: 'Needs an Apify token' },
+  { value: 'threads', label: 'Threads posts', hint: 'Needs an Apify token' },
+  { value: 'wikidata', label: 'Wikidata (companies)', hint: 'Free — established companies & brands by industry, with website' },
+  { value: 'overpass', label: 'OpenStreetMap (category)', hint: 'Free — "dentist in bali" style searches' },
+  { value: 'osm', label: 'OpenStreetMap (name)', hint: 'Free — Nominatim search' },
+];
+
+/** Native <datalist> suggestions — B2B industries the keyless sources understand (workers/src/sources/industries.ts). */
+const QUERY_SUGGESTIONS = [
+  'construction companies in Jakarta',
+  'oil and gas companies in Indonesia',
+  'mining companies in Kalimantan',
+  'manufacturing in Surabaya',
+  'logistics companies in Jakarta',
+  'FMCG brands in Indonesia',
+  'food and beverage distributor in Bandung',
+  'real estate developer in Bali',
+  'software companies in Singapore',
+  'palm oil companies in Indonesia',
+  'textile manufacturer in Bandung',
+  'dentist in Bali',
 ];
 
 const COUNTRIES = COUNTRY_CODES.map((code) => ({
@@ -41,7 +73,8 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
   const [statusMessage, setStatusMessage] = useState('');
   const [scrapeQuery, setScrapeQuery] = useState('');
   const [country, setCountry] = useState('');
-  const [source, setSource] = useState('places');
+  const [source, setSource] = useState('auto');
+  const [limit, setLimit] = useState(25);
 
   useEffect(() => {
     if (status === 'done' || status === 'error') {
@@ -61,14 +94,13 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
     setStatus('scraping');
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-      const response = await fetch(`${apiUrl}/jobs/scrape`, {
+      const response = await fetch(`${apiUrl()}/jobs/scrape`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: capturedQuery,
-          limit: 10,
+          limit,
           workspaceId,
           source,
           ...(country ? { country: country.toLowerCase() } : {}),
@@ -90,7 +122,7 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
       const poll = async () => {
         attempts++;
         try {
-          const res = await fetch(`${apiUrl}/leads/search?workspaceId=${workspaceId}&limit=50`);
+          const res = await fetch(`${apiUrl()}/leads/search?workspaceId=${workspaceId}&limit=50`);
           if (res.ok) {
             const data = await res.json();
             const allLeads: Array<{ createdAt: string }> = Array.isArray(data)
@@ -136,10 +168,29 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search leads worldwide (e.g. 'Coffee Shop Berlin')..."
+            list="scrape-suggestions"
+            placeholder="Industry + place, e.g. 'construction companies in Jakarta'"
             className="w-full bg-accent/50 border border-border h-10 pl-10 pr-4 text-sm focus:outline-none focus:border-primary transition-colors"
           />
+          <datalist id="scrape-suggestions">
+            {QUERY_SUGGESTIONS.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
         </div>
+        <select
+          value={limit}
+          onChange={(e) => setLimit(Number(e.target.value))}
+          title="How many leads to collect — auto keeps trying sources until it has this many"
+          aria-label="Number of leads"
+          className="h-10 shrink-0 bg-accent/50 border border-border px-2 text-[11px] focus:outline-none focus:border-primary transition-colors"
+        >
+          {[10, 25, 50, 100].map((n) => (
+            <option key={n} value={n}>
+              {n} leads
+            </option>
+          ))}
+        </select>
         <select
           value={source}
           onChange={(e) => setSource(e.target.value)}

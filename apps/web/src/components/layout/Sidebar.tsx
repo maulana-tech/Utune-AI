@@ -14,6 +14,7 @@ import {
   History,
   ScanSearch,
   Sparkles,
+  Contact,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
     group: 'Prospecting',
     items: [
       { href: '/dashboard/pipelines',        icon: Layers,      label: 'Pipelines'        },
+      { href: '/dashboard/contacts',         icon: Contact,     label: 'Contacts'         },
       { href: '/dashboard/scrapes',          icon: ScanSearch,  label: 'Scrape History'   },
       { href: '/dashboard/scrape-schedules', icon: Clock,       label: 'Scrape Schedules' },
     ],

@@ -2,13 +2,13 @@ import { Controller, Get, Post, Put, Delete, Param, Query, Body } from '@nestjs/
 import { eq, and } from 'drizzle-orm';
 import { db, leads } from '@repo/db';
 import { TemplatesService } from './templates.service';
-import { SmtpService } from './smtp.service';
+import { MailService } from './mail.service';
 
 @Controller('email/templates')
 export class TemplatesController {
   constructor(
     private readonly templates: TemplatesService,
-    private readonly email: SmtpService,
+    private readonly email: MailService,
   ) {}
 
   @Get()
@@ -68,11 +68,6 @@ export class TemplatesController {
       body: string;
     },
   ) {
-    const fromEmail = process.env.SUMOPOD_FROM_EMAIL || process.env.RESEND_FROM_EMAIL;
-    if (!fromEmail) {
-      throw new Error('SUMOPOD_FROM_EMAIL or RESEND_FROM_EMAIL environment variable not set');
-    }
-
     const results = [];
 
     for (const leadId of body.leadIds) {
@@ -103,7 +98,6 @@ export class TemplatesController {
           leadId,
           workspaceId,
           toEmail: lead.emails[0],
-          fromEmail,
           subject,
           body: emailBody,
         });

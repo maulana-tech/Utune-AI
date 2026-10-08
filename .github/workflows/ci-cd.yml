@@ -52,10 +52,17 @@ jobs:
             export PATH=$PNPM_HOME:$PATH
             pnpm install --frozen-lockfile
 
+            echo "=== Python deps (scraper venv) ==="
+            [ -x apps/workers/.venv/bin/python ] || python3 -m venv apps/workers/.venv
+            apps/workers/.venv/bin/pip install -q -r apps/workers/requirements.txt
+
             echo "=== Building ==="
             pnpm turbo build --filter=api --filter=workers
 
+            echo "=== Database schema (drizzle push, additive changes only) ==="
+            pnpm --filter @repo/db push
+
             echo "=== Restarting PM2 ==="
-            DOTENV_CONFIG_PATH=/home/ubuntu/app/.env pm2 restart all
+            pm2 startOrReload ecosystem.config.js --update-env
 
             echo "=== Done ==="

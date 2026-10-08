@@ -20,7 +20,7 @@ COPY apps ./apps
 # it deploys to Vercel separately; we still install to keep lockfile resolution honest).
 RUN pnpm install --frozen-lockfile
 
-# Setup Python virtual environment for the scrapling-based maps scraper
+# Python venv for the worker scrapers (places_scraper.py, enrich_websites.py)
 RUN cd apps/workers && \
     python3 -m venv .venv && \
     .venv/bin/pip install --no-cache-dir -r requirements.txt

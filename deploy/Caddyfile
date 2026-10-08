@@ -1,0 +1,8 @@
+# HTTPS for the API on the VPS. Point an A record for the subdomain at the VPS IP,
+# install Caddy (https://caddyserver.com/docs/install), copy this to /etc/caddy/Caddyfile,
+# replace the domain, then: sudo systemctl reload caddy
+# Caddy fetches and renews the TLS certificate by itself.
+
+api.example.com {
+	reverse_proxy localhost:3001
+}

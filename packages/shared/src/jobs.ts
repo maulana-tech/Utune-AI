@@ -1,6 +1,26 @@
 import { z } from 'zod';
 
-export const LeadSourceNameSchema = z.enum(['places', 'apollo', 'apify', 'firecrawl']);
+export const LeadSourceNameSchema = z.enum([
+  'auto',
+  'places',
+  'apollo',
+  'apify',
+  'firecrawl',
+  'osm',
+  'overpass',
+  'foursquare',
+  'here',
+  'tomtom',
+  'serpapi',
+  'outscraper',
+  'yelp',
+  'wikidata',
+  'social',
+  'reddit',
+  'twitter',
+  'threads',
+  'linkedin',
+]);
 export type LeadSourceName = z.infer<typeof LeadSourceNameSchema>;
 
 export const ScrapeJobPayloadSchema = z.object({

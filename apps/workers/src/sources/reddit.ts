@@ -1,5 +1,5 @@
 import { composioExecute } from './composio';
-import { buyerQueries, keepBuyerIntent, OVERFETCH } from './intent';
+import { coreNeed } from './intent';
 import { isRecord, type LeadSourceFn, type RawLead } from './types';
 
 /**
@@ -12,14 +12,16 @@ import { isRecord, type LeadSourceFn, type RawLead } from './types';
  */
 export const scrapeReddit: LeadSourceFn = async ({ query, limit, workspaceId, env }) => {
   const data = await composioExecute(env, workspaceId, 'reddit', 'REDDIT_SEARCH_ACROSS_SUBREDDITS', {
-    // Reddit search takes OR across quoted phrases.
-    search_query: buyerQueries(query).map((q) => `"${q}"`).join(' OR '),
+    // Plain words match ANY word (recipes for "butuh jasa bikin aplikasi"), a quoted
+    // phrase is too strict (0 hits), OR-ed variants get ignored. AND of the need's words
+    // was the only form that stayed on topic in live tests.
+    search_query: coreNeed(query).replace(/["()]/g, ' ').split(/\s+/).filter(Boolean).join(' AND '),
     sort: 'new',
-    limit: Math.min(limit * OVERFETCH, 100),
+    limit: Math.min(limit, 100),
     // false sounds broader but comes back empty through Composio; true searches all subreddits' posts.
     restrict_sr: true,
   });
-  return keepBuyerIntent(extractPosts(data).map((p) => toRawLead(p, query)).filter((l) => l.name)).slice(0, limit);
+  return extractPosts(data).map((p) => toRawLead(p, query)).filter((l) => l.name).slice(0, limit);
 };
 
 /**

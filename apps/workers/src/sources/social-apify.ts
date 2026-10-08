@@ -1,5 +1,5 @@
 import { runActor } from './apify';
-import { buyerQueries, keepBuyerIntent, OVERFETCH } from './intent';
+import { buyerQueries } from './intent';
 import { isRecord, type LeadSourceFn, type RawLead } from './types';
 
 /**
@@ -23,7 +23,7 @@ const date = (v: unknown) => {
 
 // ── Threads: futurizerush/meta-threads-scraper ───────────────────────────────
 export const scrapeThreads: LeadSourceFn = async ({ query, limit, env }) => {
-  const want = Math.max(10, limit * OVERFETCH); // actor rejects max_posts < 10
+  const want = Math.max(10, limit); // actor rejects max_posts < 10
   const items = await runActor(token(env, 'Threads'), env.APIFY_THREADS_ACTOR || 'futurizerush/meta-threads-scraper', want, {
     mode: 'search',
     keywords: buyerQueries(query),
@@ -31,7 +31,7 @@ export const scrapeThreads: LeadSourceFn = async ({ query, limit, env }) => {
     search_filter: 'recent',
     start_date: '1 month',
   });
-  return keepBuyerIntent(items.filter((i) => i.record_type !== 'profile').map((i) => threadsLead(i, query)).filter((l) => l.name)).slice(0, limit);
+  return items.filter((i) => i.record_type !== 'profile').map((i) => threadsLead(i, query)).filter((l) => l.name).slice(0, limit);
 };
 
 export function threadsLead(i: Record<string, unknown>, query: string): RawLead {
@@ -48,14 +48,14 @@ export function threadsLead(i: Record<string, unknown>, query: string): RawLead 
 
 // ── LinkedIn posts: harvestapi/linkedin-post-search ──────────────────────────
 export const scrapeLinkedin: LeadSourceFn = async ({ query, limit, env }) => {
-  const want = limit * OVERFETCH;
+  const want = limit;
   const items = await runActor(token(env, 'LinkedIn'), env.APIFY_LINKEDIN_ACTOR || 'harvestapi/linkedin-post-search', want, {
     searchQueries: buyerQueries(query),
     maxPosts: Math.ceil(want / buyerQueries(query).length), // per query
     sortBy: 'date',
     postedLimit: 'month',
   });
-  return keepBuyerIntent(items.map((i) => linkedinLead(i, query)).filter((l) => l.name)).slice(0, limit);
+  return items.map((i) => linkedinLead(i, query)).filter((l) => l.name).slice(0, limit);
 };
 
 export function linkedinLead(i: Record<string, unknown>, query: string): RawLead {
@@ -76,14 +76,14 @@ export function linkedinLead(i: Record<string, unknown>, query: string): RawLead
 
 // ── X: apidojo/tweet-scraper ─────────────────────────────────────────────────
 export const scrapeTwitter: LeadSourceFn = async ({ query, limit, env }) => {
-  const want = limit * OVERFETCH;
+  const want = limit;
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
   const items = await runActor(token(env, 'X'), env.APIFY_TWITTER_ACTOR || 'apidojo/tweet-scraper', want, {
     searchTerms: buyerQueries(query).map((q) => `${q} since:${since} -filter:retweets -filter:links`),
     maxItems: want,
     sort: 'Latest',
   });
-  return keepBuyerIntent(items.map((i) => tweetLead(i, query)).filter((l) => l.name)).slice(0, limit);
+  return items.map((i) => tweetLead(i, query)).filter((l) => l.name).slice(0, limit);
 };
 
 export function tweetLead(i: Record<string, unknown>, query: string): RawLead {

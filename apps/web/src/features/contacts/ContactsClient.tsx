@@ -5,6 +5,7 @@ import { BookOpen, Check, Copy, Loader2, Mail, MessageCircle, Pencil, Phone, Plu
 import { deleteTemplate, logFollowUp, saveTemplate, sendLeadEmail } from '@/app/(app)/dashboard/contacts/actions';
 import { TEMPLATE_VARS, renderTemplate, waNumber } from './template';
 import { TEMPLATE_LIBRARY, TEMPLATE_TYPES, type TemplateType } from './library';
+import { renderEmailHtml, type EmailBrand } from '@repo/db/email-html';
 
 export interface Contact {
   id: string;
@@ -46,7 +47,7 @@ function timeAgo(iso: string): string {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
-export function ContactsClient({ contacts, templates }: { contacts: Contact[]; templates: Template[] }) {
+export function ContactsClient({ contacts, templates, brand }: { contacts: Contact[]; templates: Template[]; brand: EmailBrand }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(contacts[0]?.id ?? null);
@@ -232,6 +233,7 @@ export function ContactsClient({ contacts, templates }: { contacts: Contact[]; t
           <div className="flex-1 overflow-y-auto p-4">
             {showLibrary ? (
               <TemplateLibrary
+                brand={brand}
                 existingNames={new Set(templates.map((t) => t.name))}
                 onEdit={(t) => {
                   setDraft({ name: t.name, subject: t.subject, body: t.body });
@@ -250,15 +252,7 @@ export function ContactsClient({ contacts, templates }: { contacts: Contact[]; t
             ) : !selected ? (
               <div className="flex flex-col gap-3">
                 <p className="text-[11px] text-muted-foreground">Pick a contact to see this message filled in with their details.</p>
-                <div className="border border-border bg-muted/30">
-                  {template.subject && (
-                    <div className="px-3 py-2 border-b border-border text-xs">
-                      <span className="text-muted-foreground">Subject: </span>
-                      <span className="font-medium">{template.subject}</span>
-                    </div>
-                  )}
-                  <p className="px-3 py-3 text-xs leading-relaxed whitespace-pre-wrap">{template.body}</p>
-                </div>
+                <EmailFrame subject={template.subject} body={template.body} brand={brand} />
                 <button
                   onClick={() => setDraft({ ...template })}
                   className="self-start h-8 px-3 flex items-center gap-1.5 border border-border text-[10px] font-bold uppercase tracking-widest hover:bg-accent"
@@ -272,6 +266,7 @@ export function ContactsClient({ contacts, templates }: { contacts: Contact[]; t
                 template={template}
                 copied={copied}
                 key={`${selected.id}:${template.id}`}
+                brand={brand}
                 onSend={(channel) => send(selected, channel)}
                 onEdit={() => setDraft({ ...template })}
               />
@@ -286,12 +281,14 @@ export function ContactsClient({ contacts, templates }: { contacts: Contact[]; t
 function Preview({
   contact,
   template,
+  brand,
   copied,
   onSend,
   onEdit,
 }: {
   contact: Contact;
   template: Template;
+  brand: EmailBrand;
   copied: boolean;
   onSend: (channel: 'whatsapp' | 'email' | 'copy') => void;
   onEdit: () => void;
@@ -318,15 +315,7 @@ function Preview({
         </div>
       </div>
 
-      <div className="border border-border bg-muted/30">
-        {subject && (
-          <div className="px-3 py-2 border-b border-border text-xs">
-            <span className="text-muted-foreground">Subject: </span>
-            <span className="font-medium">{subject}</span>
-          </div>
-        )}
-        <p className="px-3 py-3 text-xs leading-relaxed whitespace-pre-wrap">{body}</p>
-      </div>
+      <EmailFrame subject={subject} body={body} brand={brand} />
 
       <div className="grid grid-cols-3 gap-2">
         <ActionButton disabled={!wa} onClick={() => onSend('whatsapp')} primary>
@@ -408,8 +397,11 @@ function TemplateEditor({ draft, onCancel, onSaved }: { draft: Draft; onCancel: 
       <div>
         <label className={label} htmlFor="tpl-body">Message</label>
         <textarea id="tpl-body" ref={bodyRef} className={`${field} h-80 resize-y font-mono text-[11px] leading-relaxed`} value={value.body} onChange={(e) => setValue({ ...value, body: e.target.value })} />
+        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground font-mono">
+          ::Label &nbsp;·&nbsp; # Judul _miring_ &nbsp;·&nbsp; - poin bernomor &nbsp;·&nbsp; [Teks tombol]({'{{cta_url}}'}) &nbsp;·&nbsp; --- garis
+        </p>
         <div className="mt-2 flex flex-wrap gap-1">
-          {TEMPLATE_VARS.map((v) => (
+          {[...TEMPLATE_VARS, 'cta_url'].map((v) => (
             <button key={v} type="button" onClick={() => insertVar(v)} className="px-1.5 py-0.5 border border-border font-mono text-[10px] hover:bg-accent">
               {`{{${v}}}`}
             </button>
@@ -474,9 +466,11 @@ function ActionButton({ disabled, primary, onClick, children }: { disabled?: boo
 
 /** Browse the built-in library (library.ts) and copy templates into this workspace. */
 function TemplateLibrary({
+  brand,
   existingNames,
   onEdit,
 }: {
+  brand: EmailBrand;
   existingNames: Set<string>;
   onEdit: (t: { name: string; subject: string; body: string }) => void;
 }) {
@@ -547,7 +541,9 @@ function TemplateLibrary({
               <div className="text-[11px] text-muted-foreground mt-0.5 truncate">Subject: {t.subject}</div>
             </button>
             {open === t.id && (
-              <p className="px-3 pb-3 text-[11px] leading-relaxed whitespace-pre-wrap border-t border-border pt-2">{t.body}</p>
+              <div className="px-3 pb-3 border-t border-border pt-3">
+                <EmailFrame subject={t.subject} body={t.body} brand={brand} />
+              </div>
             )}
             <div className="px-3 pb-2 flex justify-end gap-1.5">
               <button
@@ -568,6 +564,36 @@ function TemplateLibrary({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * The email exactly as recipients get it: the mailer's HTML layout in a sandboxed
+ * iframe (no scripts), sized to its content. {{variables}} not filled yet show as-is.
+ */
+function EmailFrame({ subject, body, brand }: { subject: string; body: string; brand: EmailBrand }) {
+  const [height, setHeight] = useState(520);
+  const html = useMemo(() => renderEmailHtml(body, brand, subject), [body, brand, subject]);
+  return (
+    <div className="border border-border">
+      {subject && (
+        <div className="px-3 py-2 border-b border-border text-xs bg-background">
+          <span className="text-muted-foreground">Subject: </span>
+          <span className="font-medium">{subject}</span>
+        </div>
+      )}
+      <iframe
+        title="Email preview"
+        sandbox="allow-same-origin"
+        srcDoc={html}
+        style={{ height }}
+        className="w-full block bg-[#F5F4F1]"
+        onLoad={(e) => {
+          const doc = e.currentTarget.contentDocument;
+          if (doc) setHeight(Math.min(doc.documentElement.scrollHeight + 4, 1400));
+        }}
+      />
     </div>
   );
 }

@@ -1,6 +1,9 @@
 /**
- * Ready-made B2B email templates, Indonesian + English. {{variables}} fill from the
- * lead (see TEMPLATE_VARS); [bracketed] parts are yours to fill before sending.
+ * Ready-made B2B email templates, Indonesian + English, written in the email-layout
+ * markup (packages/db/src/email-html.ts): `::label`, `# headline _italic_`, `- item`,
+ * `[Button](url)`. They send as designed HTML with a plain-text part.
+ * {{variables}} fill from the lead, {{cta_url}} from EMAIL_CTA_URL; [bracketed]
+ * parts are yours to fill before sending.
  * Workspaces start with LIBRARY_STARTERS; the rest are added from the Library panel.
  */
 export interface LibraryTemplate {
@@ -28,8 +31,8 @@ export const TEMPLATE_TYPES = [
 ] as const;
 export type TemplateType = (typeof TEMPLATE_TYPES)[number];
 
-const SIGN_ID = 'Salam hormat,\n[Nama Anda]\n[Jabatan], [Perusahaan Anda]\n[No. telepon]';
-const SIGN_EN = 'Best regards,\n[Your name]\n[Title], [Your company]\n[Phone]';
+const SIGN_ID = 'Salam hormat,\n[Nama Anda]\n[Jabatan], [Perusahaan Anda]';
+const SIGN_EN = 'Best regards,\n[Your name]\n[Title], [Your company]';
 
 export const TEMPLATE_LIBRARY: LibraryTemplate[] = [
   // ── Perkenalan ────────────────────────────────────────────────────────────
@@ -38,14 +41,21 @@ export const TEMPLATE_LIBRARY: LibraryTemplate[] = [
     type: 'Perkenalan',
     lang: 'id',
     name: 'Perkenalan singkat',
-    subject: 'Kolaborasi dengan {{business_name}}',
-    body: `Yth. Tim {{business_name}},
+    subject: 'Ide untuk {{business_name}}',
+    body: `::Perkenalan
+# Bisnis Anda tumbuh. _Sistemnya_ juga perlu ikut tumbuh.
 
-Perkenalkan, saya [Nama Anda] dari [Perusahaan Anda]. Kami membantu perusahaan {{category}} seperti {{business_name}} untuk [hasil utama, mis. mempercepat proses pengadaan hingga 30%].
+Yth. Tim {{business_name}},
 
-Beberapa klien kami di {{city}} memakai [produk/jasa Anda] untuk [manfaat spesifik]. Saya rasa pendekatan serupa bisa relevan untuk {{business_name}}.
+Saya [Nama Anda] dari [Perusahaan Anda]. Kami membantu perusahaan {{category}} di {{city}} merapikan proses yang masih berjalan lewat spreadsheet, chat, dan kerja manual.
 
-Apakah Bapak/Ibu bersedia berdiskusi 15 menit minggu ini? Saya fleksibel menyesuaikan jadwal.
+- [Hasil utama 1, mis. laporan proyek otomatis setiap minggu]
+- [Hasil utama 2, mis. data penjualan dan stok di satu tempat]
+- [Hasil utama 3, mis. harga tetap yang disepakati sebelum mulai]
+
+Kalau topik ini relevan, saya ingin berdiskusi 15 menit untuk memahami kebutuhan {{business_name}}.
+
+[Jadwalkan diskusi 15 menit]({{cta_url}})
 
 ${SIGN_ID}`,
   },
@@ -54,14 +64,21 @@ ${SIGN_ID}`,
     type: 'Perkenalan',
     lang: 'en',
     name: 'Intro, short and direct',
-    subject: 'Quick idea for {{business_name}}',
-    body: `Hi {{business_name}} team,
+    subject: 'An idea for {{business_name}}',
+    body: `::Introduction
+# Your business has grown. _Your systems_ should too.
 
-I'm [Your name] from [Your company]. We help {{category}} companies like {{business_name}} [key outcome, e.g. cut procurement time by 30%].
+Hi {{business_name}} team,
 
-A few teams in {{city}} use [your product/service] to [specific benefit], and I think a similar approach could work for you.
+I'm [Your name] from [Your company]. We help {{category}} companies in {{city}} move work out of spreadsheets, chat threads and manual steps.
 
-Would you be open to a 15-minute call this week? Happy to work around your schedule.
+- [Key outcome 1, e.g. weekly project reports that build themselves]
+- [Key outcome 2, e.g. sales and stock in one place]
+- [Key outcome 3, e.g. a fixed price agreed before kickoff]
+
+If this is relevant, I'd like a 15-minute call to understand what {{business_name}} needs.
+
+[Book a 15-minute call]({{cta_url}})
 
 ${SIGN_EN}`,
   },
@@ -70,14 +87,19 @@ ${SIGN_EN}`,
     type: 'Perkenalan',
     lang: 'id',
     name: 'Perkenalan berbasis masalah',
-    subject: '[Masalah umum] di perusahaan {{category}}',
-    body: `Yth. Tim {{business_name}},
+    subject: 'Masalah yang sering kami lihat di perusahaan {{category}}',
+    body: `::Perkenalan
+# Masih mengandalkan _laporan manual_?
 
-Banyak perusahaan {{category}} yang kami ajak bicara menghadapi tantangan yang sama: [masalah umum, mis. laporan proyek yang masih manual dan sering terlambat].
+Yth. Tim {{business_name}},
 
-[Perusahaan Anda] membantu menyelesaikan hal ini dengan [solusi singkat]. Hasilnya, klien kami rata-rata [hasil terukur].
+Banyak perusahaan {{category}} yang kami ajak bicara menghadapi hal yang sama: [masalah umum, mis. laporan proyek disusun manual dan sering terlambat]. Akibatnya [dampak, mis. keputusan diambil dengan data yang sudah basi].
 
-Jika hal ini juga dialami {{business_name}}, saya ingin berbagi bagaimana kami melakukannya. Apakah ada waktu untuk panggilan singkat?
+[Perusahaan Anda] menyelesaikan ini dengan [solusi singkat]. Klien kami rata-rata merasakan [hasil terukur] dalam [jangka waktu].
+
+Jika kondisi ini juga terjadi di {{business_name}}, saya bisa menunjukkan caranya dalam panggilan singkat.
+
+[Lihat caranya]({{cta_url}})
 
 ${SIGN_ID}`,
   },
@@ -86,14 +108,19 @@ ${SIGN_ID}`,
     type: 'Perkenalan',
     lang: 'en',
     name: 'Intro, problem-led',
-    subject: '[Common problem] at {{category}} companies',
-    body: `Hi {{business_name}} team,
+    subject: 'Something we keep seeing at {{category}} companies',
+    body: `::Introduction
+# Still running on _manual reports_?
 
-Most {{category}} companies we speak with run into the same issue: [common problem, e.g. project reports still compiled by hand and often late].
+Hi {{business_name}} team,
 
-[Your company] fixes this with [short solution]. On average our clients see [measurable result].
+Most {{category}} companies we speak with run into the same issue: [common problem, e.g. project reports compiled by hand and often late]. The result is [impact, e.g. decisions made on stale numbers].
 
-If this sounds familiar at {{business_name}}, I'd be glad to show how we do it. Do you have time for a short call?
+[Your company] fixes this with [short solution]. On average our clients see [measurable result] within [timeframe].
+
+If this sounds familiar at {{business_name}}, I can walk you through how it works on a short call.
+
+[See how it works]({{cta_url}})
 
 ${SIGN_EN}`,
   },
@@ -104,12 +131,15 @@ ${SIGN_EN}`,
     type: 'Follow-up',
     lang: 'id',
     name: 'Follow-up 1 (3 hari kemudian)',
-    subject: 'Re: Kolaborasi dengan {{business_name}}',
-    body: `Yth. Tim {{business_name}},
+    subject: 'Re: Ide untuk {{business_name}}',
+    body: `::Tindak lanjut
+# Satu pertanyaan _singkat_.
 
-Saya ingin menindaklanjuti email saya sebelumnya. Singkatnya, kami membantu perusahaan {{category}} [hasil utama].
+Yth. Tim {{business_name}},
 
-Apakah topik ini relevan untuk {{business_name}} saat ini? Cukup dibalas "ya" atau "tidak sekarang", keduanya sangat membantu saya.
+Saya menindaklanjuti email saya sebelumnya. Singkatnya, kami membantu perusahaan {{category}} [hasil utama].
+
+Apakah ini relevan untuk {{business_name}} saat ini? Cukup dibalas "ya" atau "belum sekarang", keduanya sangat membantu saya.
 
 ${SIGN_ID}`,
   },
@@ -118,8 +148,11 @@ ${SIGN_ID}`,
     type: 'Follow-up',
     lang: 'en',
     name: 'Follow-up 1 (after 3 days)',
-    subject: 'Re: Quick idea for {{business_name}}',
-    body: `Hi {{business_name}} team,
+    subject: 'Re: An idea for {{business_name}}',
+    body: `::Follow-up
+# One _quick_ question.
+
+Hi {{business_name}} team,
 
 Following up on my last note. In short, we help {{category}} companies [key outcome].
 
@@ -132,15 +165,21 @@ ${SIGN_EN}`,
     type: 'Follow-up',
     lang: 'id',
     name: 'Follow-up 2 (studi kasus)',
-    subject: 'Contoh hasil untuk perusahaan {{category}}',
-    body: `Yth. Tim {{business_name}},
+    subject: 'Hasil untuk perusahaan {{category}} lain',
+    body: `::Studi kasus
+# Dari _spreadsheet_ ke sistem yang berjalan sendiri.
+
+Yth. Tim {{business_name}},
 
 Sebagai gambaran, berikut hasil salah satu klien kami di bidang {{category}}:
+
 - Sebelum: [kondisi sebelum]
 - Sesudah: [hasil setelah memakai solusi Anda]
-- Waktu implementasi: [durasi]
+- Waktu pengerjaan: [durasi]
 
-Jika Bapak/Ibu tertarik melihat apakah hasil serupa memungkinkan untuk {{business_name}}, saya bisa menyiapkan simulasi singkat tanpa biaya.
+Jika ingin melihat apakah hasil serupa memungkinkan untuk {{business_name}}, saya bisa menyiapkan penilaian singkat tanpa biaya.
+
+[Minta penilaian gratis]({{cta_url}})
 
 ${SIGN_ID}`,
   },
@@ -150,14 +189,20 @@ ${SIGN_ID}`,
     lang: 'en',
     name: 'Follow-up 2 (case study)',
     subject: 'What this looked like for another {{category}} company',
-    body: `Hi {{business_name}} team,
+    body: `::Case study
+# From _spreadsheets_ to a system that runs itself.
 
-Here's a quick snapshot from one of our {{category}} clients:
+Hi {{business_name}} team,
+
+Here's a snapshot from one of our {{category}} clients:
+
 - Before: [situation before]
 - After: [result with your solution]
-- Time to value: [duration]
+- Time to deliver: [duration]
 
 If you'd like to see whether something similar is possible for {{business_name}}, I can put together a short, no-cost assessment.
+
+[Request a free assessment]({{cta_url}})
 
 ${SIGN_EN}`,
   },
@@ -168,17 +213,21 @@ ${SIGN_EN}`,
     type: 'Meeting / Demo',
     lang: 'id',
     name: 'Permintaan meeting / demo',
-    subject: 'Jadwal demo 20 menit untuk {{business_name}}',
-    body: `Yth. Tim {{business_name}},
+    subject: 'Demo 20 menit untuk {{business_name}}',
+    body: `::Demo
+# Lihat langsung _cara kerjanya_.
 
-Terima kasih atas ketertarikannya. Saya ingin mengajak Bapak/Ibu mengikuti demo singkat sekitar 20 menit untuk melihat langsung bagaimana [produk/jasa Anda] bekerja untuk kebutuhan {{category}}.
+Yth. Tim {{business_name}},
 
-Pilihan waktu yang tersedia:
-- [Hari, tanggal, jam]
-- [Hari, tanggal, jam]
-- [Hari, tanggal, jam]
+Terima kasih atas ketertarikannya. Dalam demo sekitar 20 menit, kami akan menunjukkan:
 
-Silakan pilih yang paling sesuai, atau sarankan waktu lain. Demo bisa dilakukan online maupun di kantor Bapak/Ibu di {{city}}.
+- Bagaimana [produk/jasa Anda] menangani kebutuhan {{category}}
+- Contoh hasil dari klien dengan skala serupa
+- Estimasi waktu dan biaya untuk {{business_name}}
+
+Demo bisa dilakukan online atau di kantor Bapak/Ibu di {{city}}. Silakan pilih waktu yang paling sesuai.
+
+[Pilih jadwal demo]({{cta_url}})
 
 ${SIGN_ID}`,
   },
@@ -187,17 +236,21 @@ ${SIGN_ID}`,
     type: 'Meeting / Demo',
     lang: 'en',
     name: 'Meeting / demo request',
-    subject: '20-minute demo for {{business_name}}',
-    body: `Hi {{business_name}} team,
+    subject: 'A 20-minute demo for {{business_name}}',
+    body: `::Demo
+# See _how it works_.
 
-Thanks for your interest. I'd like to walk you through a short 20-minute demo of how [your product/service] works for {{category}} teams.
+Hi {{business_name}} team,
 
-A few times that work on my side:
-- [Day, date, time]
-- [Day, date, time]
-- [Day, date, time]
+Thanks for your interest. In a 20-minute demo we'll cover:
 
-Pick whichever suits you, or suggest another slot. Happy to do it online or at your office in {{city}}.
+- How [your product/service] handles {{category}} workflows
+- Results from a client of a similar size
+- A time and cost estimate for {{business_name}}
+
+We can do it online or at your office in {{city}}. Pick whatever time suits you.
+
+[Pick a demo slot]({{cta_url}})
 
 ${SIGN_EN}`,
   },
@@ -208,17 +261,22 @@ ${SIGN_EN}`,
     type: 'Penawaran',
     lang: 'id',
     name: 'Kirim penawaran / proposal',
-    subject: 'Penawaran [produk/jasa] untuk {{business_name}}',
-    body: `Yth. Tim {{business_name}},
+    subject: 'Penawaran untuk {{business_name}}',
+    body: `::Penawaran
+# Lingkup tetap. _Harga tetap_.
+
+Yth. Tim {{business_name}},
 
 Menindaklanjuti diskusi kita, terlampir penawaran untuk [lingkup pekerjaan]. Ringkasannya:
 
 - Lingkup: [ringkasan lingkup]
-- Investasi: [harga / skema]
+- Investasi: [harga atau skema pembayaran]
 - Jadwal: [estimasi waktu pengerjaan]
 - Berlaku hingga: [tanggal]
 
-Saya siap menjelaskan detailnya atau menyesuaikan penawaran dengan kebutuhan {{business_name}}. Apakah ada waktu untuk membahasnya minggu ini?
+Saya siap menjelaskan detailnya atau menyesuaikan penawaran dengan kebutuhan {{business_name}}.
+
+[Jadwalkan pembahasan penawaran]({{cta_url}})
 
 ${SIGN_ID}`,
   },
@@ -227,17 +285,22 @@ ${SIGN_ID}`,
     type: 'Penawaran',
     lang: 'en',
     name: 'Send a proposal',
-    subject: '[Product/service] proposal for {{business_name}}',
-    body: `Hi {{business_name}} team,
+    subject: 'Our proposal for {{business_name}}',
+    body: `::Proposal
+# Fixed scope. _Fixed price_.
 
-Following our conversation, please find attached our proposal for [scope]. In short:
+Hi {{business_name}} team,
+
+Following our conversation, our proposal for [scope] is attached. In short:
 
 - Scope: [summary]
-- Investment: [price / model]
+- Investment: [price or payment model]
 - Timeline: [estimated delivery]
 - Valid until: [date]
 
-I'm happy to walk through the details or adjust it to fit {{business_name}}'s needs. Would you have time to review it together this week?
+Happy to walk through the details or adjust it to fit {{business_name}}.
+
+[Book a review call]({{cta_url}})
 
 ${SIGN_EN}`,
   },
@@ -247,7 +310,10 @@ ${SIGN_EN}`,
     lang: 'id',
     name: 'Follow-up penawaran',
     subject: 'Re: Penawaran untuk {{business_name}}',
-    body: `Yth. Tim {{business_name}},
+    body: `::Penawaran
+# Ada yang perlu _disesuaikan_?
+
+Yth. Tim {{business_name}},
 
 Saya ingin memastikan penawaran yang kami kirim pada [tanggal] sudah diterima. Apakah ada bagian yang perlu kami jelaskan atau sesuaikan, misalnya lingkup, harga, atau jadwal?
 
@@ -262,16 +328,23 @@ ${SIGN_ID}`,
     type: 'Pasca-meeting',
     lang: 'id',
     name: 'Ringkasan setelah meeting',
-    subject: 'Ringkasan pertemuan dan langkah selanjutnya, {{business_name}}',
-    body: `Yth. Tim {{business_name}},
+    subject: 'Ringkasan pertemuan dan langkah selanjutnya',
+    body: `::Ringkasan pertemuan
+# Terima kasih atas _waktunya_.
 
-Terima kasih atas waktunya hari ini. Berikut ringkasan pembahasan kita:
+Yth. Tim {{business_name}},
+
+Berikut ringkasan pembahasan kita hari ini.
 
 Kebutuhan utama:
+
 - [poin 1]
 - [poin 2]
 
+---
+
 Langkah selanjutnya:
+
 - [Perusahaan Anda]: [tindakan], tenggat [tanggal]
 - {{business_name}}: [tindakan], tenggat [tanggal]
 
@@ -284,16 +357,23 @@ ${SIGN_ID}`,
     type: 'Pasca-meeting',
     lang: 'en',
     name: 'Meeting recap and next steps',
-    subject: 'Recap and next steps, {{business_name}}',
-    body: `Hi {{business_name}} team,
+    subject: 'Recap and next steps',
+    body: `::Meeting recap
+# Thanks for your _time_ today.
 
-Thanks for your time today. Here's a quick recap:
+Hi {{business_name}} team,
+
+Here's a quick recap of what we discussed.
 
 Key needs:
+
 - [point 1]
 - [point 2]
 
+---
+
 Next steps:
+
 - [Your company]: [action], due [date]
 - {{business_name}}: [action], due [date]
 
@@ -309,15 +389,20 @@ ${SIGN_EN}`,
     lang: 'id',
     name: 'Berbagi insight / resource',
     subject: 'Insight untuk industri {{category}}',
-    body: `Yth. Tim {{business_name}},
+    body: `::Insight
+# Tiga hal yang membedakan _tim yang cepat_.
+
+Yth. Tim {{business_name}},
 
 Saya baru menyusun [laporan/checklist/artikel] tentang [topik relevan untuk {{category}}], dan rasanya bisa berguna untuk tim {{business_name}}.
 
-Beberapa poin pentingnya:
 - [insight 1]
 - [insight 2]
+- [insight 3]
 
-Dokumennya bisa dibaca di sini: [link]. Jika ada pertanyaan, silakan hubungi saya.
+Versi lengkapnya bisa dibaca melalui tautan di bawah. Jika ada pertanyaan, silakan balas email ini.
+
+[Baca selengkapnya]({{cta_url}})
 
 ${SIGN_ID}`,
   },
@@ -327,15 +412,20 @@ ${SIGN_ID}`,
     lang: 'en',
     name: 'Share an insight / resource',
     subject: 'Something useful for {{category}} teams',
-    body: `Hi {{business_name}} team,
+    body: `::Insight
+# Three things _faster teams_ do differently.
+
+Hi {{business_name}} team,
 
 I recently put together a [report/checklist/article] on [topic relevant to {{category}}] and thought it might help your team.
 
-A few takeaways:
 - [insight 1]
 - [insight 2]
+- [insight 3]
 
-You can read it here: [link]. Let me know if you have questions.
+The full version is linked below. If you have questions, just reply to this email.
+
+[Read the full piece]({{cta_url}})
 
 ${SIGN_EN}`,
   },
@@ -346,12 +436,20 @@ ${SIGN_EN}`,
     type: 'Re-engagement',
     lang: 'id',
     name: 'Menghubungi kembali prospek lama',
-    subject: 'Ada pembaruan untuk {{business_name}}',
-    body: `Yth. Tim {{business_name}},
+    subject: 'Pembaruan untuk {{business_name}}',
+    body: `::Pembaruan
+# Ada yang _berubah_ sejak terakhir kita bicara.
 
-Beberapa waktu lalu kita sempat berdiskusi tentang [topik]. Sejak itu, kami telah [pembaruan penting, mis. meluncurkan fitur baru / menurunkan biaya implementasi].
+Yth. Tim {{business_name}},
 
-Mengingat kebutuhan {{business_name}} yang sempat dibahas, saya rasa ini layak dipertimbangkan kembali. Apakah waktunya sudah tepat untuk berdiskusi lagi?
+Beberapa waktu lalu kita sempat berdiskusi tentang [topik]. Sejak itu, kami telah:
+
+- [pembaruan 1, mis. meluncurkan fitur baru]
+- [pembaruan 2, mis. menurunkan biaya implementasi]
+
+Mengingat kebutuhan {{business_name}} yang sempat dibahas, mungkin ini saat yang tepat untuk berdiskusi lagi.
+
+[Atur ulang diskusi]({{cta_url}})
 
 ${SIGN_ID}`,
   },
@@ -360,12 +458,20 @@ ${SIGN_ID}`,
     type: 'Re-engagement',
     lang: 'en',
     name: 'Re-engage a past prospect',
-    subject: 'An update worth a second look, {{business_name}}',
-    body: `Hi {{business_name}} team,
+    subject: 'An update for {{business_name}}',
+    body: `::Update
+# A few things have _changed_ since we last spoke.
 
-We spoke a while ago about [topic]. Since then we've [key update, e.g. launched a new feature / lowered implementation cost].
+Hi {{business_name}} team,
 
-Given what you shared about {{business_name}}'s needs, it may be worth revisiting. Is now a better time to reconnect?
+We spoke a while ago about [topic]. Since then we have:
+
+- [update 1, e.g. launched a new feature]
+- [update 2, e.g. lowered implementation cost]
+
+Given what you shared about {{business_name}}'s needs, it may be a good time to pick the conversation back up.
+
+[Reconnect]({{cta_url}})
 
 ${SIGN_EN}`,
   },
@@ -377,9 +483,12 @@ ${SIGN_EN}`,
     lang: 'id',
     name: 'Menanyakan kontak yang tepat',
     subject: 'Siapa yang menangani [bidang] di {{business_name}}?',
-    body: `Yth. Tim {{business_name}},
+    body: `::Pertanyaan singkat
+# Bolehkah saya minta _diarahkan_?
 
-Saya ingin menghubungi pihak yang bertanggung jawab atas [bidang, mis. pengadaan / operasional / IT] di {{business_name}}.
+Yth. Tim {{business_name}},
+
+Saya ingin menghubungi pihak yang bertanggung jawab atas [bidang, mis. pengadaan, operasional, atau IT] di {{business_name}}.
 
 Apakah Bapak/Ibu berkenan mengarahkan saya ke orang yang tepat? Terima kasih banyak atas bantuannya.
 
@@ -391,9 +500,12 @@ ${SIGN_ID}`,
     lang: 'en',
     name: 'Ask for the right contact',
     subject: 'Who handles [area] at {{business_name}}?',
-    body: `Hi {{business_name}} team,
+    body: `::Quick question
+# Could you point me in the _right direction_?
 
-I'm trying to reach whoever looks after [area, e.g. procurement / operations / IT] at {{business_name}}.
+Hi {{business_name}} team,
+
+I'm trying to reach whoever looks after [area, e.g. procurement, operations or IT] at {{business_name}}.
 
 Would you mind pointing me to the right person? Thank you.
 
@@ -406,17 +518,22 @@ ${SIGN_EN}`,
     type: 'Undangan event',
     lang: 'id',
     name: 'Undangan webinar / acara',
-    subject: 'Undangan: [nama acara] untuk pelaku {{category}}',
-    body: `Yth. Tim {{business_name}},
+    subject: 'Undangan: [nama acara]',
+    body: `::Undangan
+# [Nama acara]: _[topik utama]_.
 
-Kami mengundang Bapak/Ibu untuk hadir di [nama acara], [webinar/diskusi] tentang [topik] khusus untuk pelaku {{category}}.
+Yth. Tim {{business_name}},
+
+Kami mengundang Bapak/Ibu untuk hadir di [webinar/diskusi] tentang [topik], khusus untuk pelaku {{category}}.
 
 - Tanggal: [tanggal]
 - Waktu: [jam] WIB
-- Tempat: [online / lokasi di {{city}}]
-- Pembicara: [nama & jabatan]
+- Tempat: [online atau lokasi di {{city}}]
+- Pembicara: [nama dan jabatan]
 
-Pendaftaran gratis melalui: [link]
+Pendaftaran tidak dipungut biaya.
+
+[Daftar sekarang]({{cta_url}})
 
 ${SIGN_ID}`,
   },
@@ -425,17 +542,22 @@ ${SIGN_ID}`,
     type: 'Undangan event',
     lang: 'en',
     name: 'Webinar / event invite',
-    subject: 'Invitation: [event name] for {{category}} leaders',
-    body: `Hi {{business_name}} team,
+    subject: 'Invitation: [event name]',
+    body: `::Invitation
+# [Event name]: _[main topic]_.
 
-We'd like to invite you to [event name], a [webinar/roundtable] on [topic] for {{category}} teams.
+Hi {{business_name}} team,
+
+We'd like to invite you to a [webinar/roundtable] on [topic] for {{category}} teams.
 
 - Date: [date]
 - Time: [time]
-- Where: [online / venue in {{city}}]
-- Speaker: [name & title]
+- Where: [online or venue in {{city}}]
+- Speaker: [name and title]
 
-Registration is free: [link]
+Registration is free.
+
+[Register]({{cta_url}})
 
 ${SIGN_EN}`,
   },
@@ -446,14 +568,21 @@ ${SIGN_EN}`,
     type: 'Kemitraan',
     lang: 'id',
     name: 'Ajakan kemitraan / kerja sama',
-    subject: 'Peluang kemitraan antara {{business_name}} dan [Perusahaan Anda]',
-    body: `Yth. Tim {{business_name}},
+    subject: 'Peluang kemitraan dengan {{business_name}}',
+    body: `::Kemitraan
+# Pelanggan yang sama. _Produk yang saling melengkapi_.
 
-[Perusahaan Anda] dan {{business_name}} melayani pelanggan yang serupa di sektor {{category}}, namun dengan produk yang saling melengkapi.
+Yth. Tim {{business_name}},
 
-Kami melihat peluang kerja sama dalam bentuk [mis. referral, bundling, co-marketing], yang dapat [manfaat bagi kedua pihak].
+[Perusahaan Anda] dan {{business_name}} melayani pelanggan yang serupa di sektor {{category}}. Kami melihat peluang kerja sama dalam beberapa bentuk:
+
+- [Model 1, mis. saling merujuk klien]
+- [Model 2, mis. paket layanan gabungan]
+- [Model 3, mis. kampanye pemasaran bersama]
 
 Apakah Bapak/Ibu terbuka untuk diskusi awal? Saya bisa menyiapkan gambaran model kerja samanya terlebih dahulu.
+
+[Atur diskusi awal]({{cta_url}})
 
 ${SIGN_ID}`,
   },
@@ -462,14 +591,21 @@ ${SIGN_ID}`,
     type: 'Kemitraan',
     lang: 'en',
     name: 'Partnership proposal',
-    subject: 'Partnership idea: {{business_name}} and [Your company]',
-    body: `Hi {{business_name}} team,
+    subject: 'A partnership idea for {{business_name}}',
+    body: `::Partnership
+# Same customers. _Complementary products_.
 
-[Your company] and {{business_name}} serve similar {{category}} customers with complementary offerings.
+Hi {{business_name}} team,
 
-We see an opportunity to work together through [e.g. referrals, bundling, co-marketing], which could [benefit for both sides].
+[Your company] and {{business_name}} serve similar {{category}} customers. We see a few ways to work together:
 
-Would you be open to an exploratory chat? I can share a draft of how the partnership could work beforehand.
+- [Model 1, e.g. client referrals]
+- [Model 2, e.g. a bundled offer]
+- [Model 3, e.g. joint marketing]
+
+Would you be open to an exploratory chat? I can share a draft of how it could work beforehand.
+
+[Set up a first chat]({{cta_url}})
 
 ${SIGN_EN}`,
   },
@@ -481,14 +617,16 @@ ${SIGN_EN}`,
     lang: 'id',
     name: 'Terima kasih & onboarding klien baru',
     subject: 'Selamat bergabung, {{business_name}}',
-    body: `Yth. Tim {{business_name}},
+    body: `::Selamat bergabung
+# Terima kasih atas _kepercayaannya_.
 
-Terima kasih telah mempercayakan [proyek/layanan] kepada [Perusahaan Anda].
+Yth. Tim {{business_name}},
 
-Langkah awal kita:
-1. [Langkah 1, mis. kick-off meeting pada tanggal …]
-2. [Langkah 2]
-3. [Langkah 3]
+Terima kasih telah mempercayakan [proyek/layanan] kepada [Perusahaan Anda]. Berikut langkah awal kita:
+
+- [Langkah 1, mis. kick-off meeting pada tanggal tertentu]
+- [Langkah 2]
+- [Langkah 3]
 
 Kontak utama Bapak/Ibu adalah [nama PIC] ([email/telepon]). Jangan ragu menghubungi kami kapan saja.
 
@@ -500,14 +638,16 @@ ${SIGN_ID}`,
     lang: 'en',
     name: 'Thank you & onboarding',
     subject: 'Welcome aboard, {{business_name}}',
-    body: `Hi {{business_name}} team,
+    body: `::Welcome aboard
+# Thank you for your _trust_.
 
-Thank you for choosing [Your company] for [project/service]. We look forward to working with you.
+Hi {{business_name}} team,
 
-Here's how we'll get started:
-1. [Step 1, e.g. kick-off call on …]
-2. [Step 2]
-3. [Step 3]
+Thank you for choosing [Your company] for [project/service]. Here's how we'll get started:
+
+- [Step 1, e.g. kick-off call on a set date]
+- [Step 2]
+- [Step 3]
 
 Your main point of contact is [name] ([email/phone]). Reach out anytime.
 
@@ -521,13 +661,14 @@ ${SIGN_EN}`,
     lang: 'id',
     name: 'Email penutup (breakup)',
     subject: 'Haruskah saya menutup percakapan ini?',
-    body: `Yth. Tim {{business_name}},
+    body: `::Penutup
+# Email _terakhir_ dari saya.
+
+Yth. Tim {{business_name}},
 
 Saya belum mendapat kabar, jadi saya asumsikan topik ini belum menjadi prioritas saat ini, dan itu sangat wajar.
 
 Ini email terakhir saya agar tidak mengganggu. Jika di kemudian hari {{business_name}} membutuhkan [solusi Anda], saya siap membantu kapan saja.
-
-Terima kasih.
 
 ${SIGN_ID}`,
   },
@@ -537,13 +678,14 @@ ${SIGN_ID}`,
     lang: 'en',
     name: 'Breakup email',
     subject: 'Should I close your file?',
-    body: `Hi {{business_name}} team,
+    body: `::Closing the loop
+# My _last_ note on this.
+
+Hi {{business_name}} team,
 
 I haven't heard back, so I'll assume this isn't a priority right now, which is completely understandable.
 
 This is my last note so I don't crowd your inbox. If {{business_name}} ever needs [your solution], I'm one reply away.
-
-All the best.
 
 ${SIGN_EN}`,
   },

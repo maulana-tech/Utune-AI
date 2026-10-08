@@ -266,6 +266,8 @@ Notes:
 - **`resend`** — `RESEND_API_KEY` + `RESEND_FROM_EMAIL` on a verified domain (both BYOK-able). Delivery/open/click webhooks land on `apps/web/src/app/api/webhooks/resend/route.ts`; `email/email.service.ts` now only holds that webhook bookkeeping, matched on `email_outreach.resendEmailId` (which stores every provider's message id)
 - **`smtp`** (alias `sumopod`) — SumoPod SMTP via nodemailer (`SUMOPOD_SMTP_*`, `SUMOPOD_FROM_EMAIL`)
 
+Every email is sent as **designed HTML + a text/plain part**: `packages/db/src/email-html.ts` turns a template's plain-text body into a table-based, inline-styled layout in the style of site-using.vercel.app (cream page, serif headline with `_italic_`, mono `::label`, numbered `- items`, orange `[Button]({{cta_url}})`). Brand comes from `EMAIL_BRAND_*` / `EMAIL_CTA_URL` (falls back to the workspace name); a body that already is HTML is sent as-is. The same renderer powers the Contacts preview (`@repo/db/email-html` entry — pure, no DB import, safe in client bundles). Check: `pnpm --filter @repo/db exec tsx src/email-html.check.ts`.
+
 Every send is recorded in `email_outreach` (draft when `scheduledFor` is set, then queued → sent/failed). Keys are resolved per workspace (`process.env` + `getWorkspaceKeys`).
 
 `EmailModule` is **not** registered in `app.module.ts`; it reaches the HTTP layer through `LeadsModule` (`POST /leads/:id/email` drafts with the cold-email agent, `POST /leads/:id/send-email` sends). Templates and sequences have their own controllers (`templates.controller.ts`, `sequences.controller.ts`) — reachable only if their module is wired in, so check before assuming an endpoint is live.

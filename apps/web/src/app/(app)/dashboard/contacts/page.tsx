@@ -1,5 +1,6 @@
 import { and, desc, eq, max, sql } from 'drizzle-orm';
-import { db, emailTemplates, leadNotes, leads } from '@repo/db';
+import { db, emailTemplates, leadNotes, leads, workspaces } from '@repo/db';
+import { brandFromEnv } from '@repo/db/email-html';
 import { getWorkspaceId } from '@/lib/get-workspace';
 import { ContactsClient } from '@/features/contacts/ContactsClient';
 import { LIBRARY_STARTERS } from '@/features/contacts/library';
@@ -53,8 +54,13 @@ export default async function ContactsPage() {
     .groupBy(leadNotes.leadId);
   const lastFollowUp = Object.fromEntries(followUps.map((f) => [f.leadId, f.last?.toISOString() ?? null]));
 
+  // Same brand the mailer uses, so the preview matches what recipients get.
+  const [ws] = await db.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+  const brand = brandFromEnv(process.env, ws?.name);
+
   return (
     <ContactsClient
+      brand={brand}
       contacts={contacts.map((c) => ({ ...c, lastFollowUp: lastFollowUp[c.id] ?? null }))}
       templates={templates.map((t) => ({ id: t.id, name: t.name, subject: t.subject, body: t.body }))}
     />

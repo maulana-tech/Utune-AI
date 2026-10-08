@@ -1,6 +1,8 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from './index';
+import { brandFromEnv, plainTextFromMarkup, renderEmailHtml } from './email-html';
 import { emailOutreach } from './schema/email_outreach';
+import { workspaces } from './schema/workspaces';
 import { getWorkspaceKeys } from './secrets';
 
 /**
@@ -36,7 +38,12 @@ export async function deliverEmail(
   workspaceId: string,
 ): Promise<{ provider: MailProvider; from: string; messageId: string | null }> {
   const provider = mailProvider(env);
-  const html = looksLikeHtml(mail.body);
+  // Plain-text templates get the designed layout (email-html.ts) plus a text/plain part;
+  // a body that is already HTML (e.g. an AI draft) is sent as-is.
+  const isHtml = looksLikeHtml(mail.body);
+  const brand = isHtml ? null : await brandFor(env, workspaceId);
+  const html = brand ? renderEmailHtml(mail.body, brand, mail.subject) : mail.body;
+  const text = brand ? plainTextFromMarkup(mail.body, brand) : undefined;
 
   if (provider === 'resend') {
     const key = env.RESEND_API_KEY;
@@ -49,7 +56,8 @@ export async function deliverEmail(
         from,
         to: mail.to,
         subject: mail.subject,
-        ...(html ? { html: mail.body } : { text: mail.body }),
+        html,
+        ...(text ? { text } : {}),
         tags: [{ name: 'workspace_id', value: workspaceId }],
       }),
     });
@@ -64,7 +72,7 @@ export async function deliverEmail(
     if (!host || !port || !user || !pass || !from) throw new Error('SMTP needs SUMOPOD_SMTP_HOST/PORT/USER/PASS and SUMOPOD_FROM_EMAIL');
     const nodemailer = await import('nodemailer');
     const transport = nodemailer.createTransport({ host, port: Number(port), secure: true, auth: { user, pass } });
-    const info = await transport.sendMail({ from, to: mail.to, subject: mail.subject, ...(html ? { html: mail.body } : { text: mail.body }) });
+    const info = await transport.sendMail({ from, to: mail.to, subject: mail.subject, html, ...(text ? { text } : {}) });
     return { provider, from, messageId: info.messageId ?? null };
   }
 
@@ -75,11 +83,18 @@ export async function deliverEmail(
   const data = await composioTool(key, userId, 'GMAIL_SEND_EMAIL', {
     recipient_email: mail.to,
     subject: mail.subject,
-    body: mail.body,
-    is_html: html,
+    body: html,
+    is_html: true,
   });
   const sent = isObj(data) && isObj(data.response_data) ? data.response_data : {};
   return { provider, from: await gmailAddress(key, userId), messageId: typeof sent.id === 'string' ? sent.id : null };
+}
+
+/** Brand for the email layout: EMAIL_BRAND_* env, else the workspace's name. */
+async function brandFor(env: Env, workspaceId: string) {
+  if (env.EMAIL_BRAND_NAME) return brandFromEnv(env);
+  const [ws] = await db.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+  return brandFromEnv(env, ws?.name);
 }
 
 /**

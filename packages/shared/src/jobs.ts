@@ -15,6 +15,11 @@ export const LeadSourceNameSchema = z.enum([
   'outscraper',
   'yelp',
   'wikidata',
+  'social',
+  'reddit',
+  'twitter',
+  'threads',
+  'linkedin',
 ]);
 export type LeadSourceName = z.infer<typeof LeadSourceNameSchema>;
 

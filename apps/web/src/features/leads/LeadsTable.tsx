@@ -45,6 +45,10 @@ const SOURCE_LABELS: Record<string, string> = {
   outscraper: 'Outscraper',
   yelp: 'Yelp',
   wikidata: 'Wikidata',
+  reddit: 'Reddit',
+  twitter: 'X',
+  threads: 'Threads',
+  linkedin: 'LinkedIn',
 };
 
 /** Google formats addresses as "street, city, country", so the tail is the country. */

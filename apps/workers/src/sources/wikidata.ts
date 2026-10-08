@@ -20,11 +20,12 @@ export const scrapeWikidata: LeadSourceFn = async ({ query, limit, country }: Sc
 
   let countryCode = country?.toUpperCase();
   if (!countryCode && where) countryCode = (await geocode(where))?.countryCode ?? undefined;
+  const countryQid = countryCode ? await countryItem(countryCode) : undefined;
 
   const industryIds = (await Promise.all(terms.map(searchItems))).flat();
   if (!industryIds.length) return [];
 
-  const res = await fetch(`${SPARQL_URL}?${new URLSearchParams({ query: buildSparql(industryIds, countryCode, limit) })}`, {
+  const res = await fetch(`${SPARQL_URL}?${new URLSearchParams({ query: buildSparql(industryIds, countryQid, limit) })}`, {
     headers: { Accept: 'application/sparql-results+json', 'User-Agent': 'Utune-AI lead finder' },
     signal: AbortSignal.timeout(60_000),
   });
@@ -52,10 +53,27 @@ async function searchItems(term: string): Promise<string[]> {
   return (body.search ?? []).map((r) => r.id).filter((id): id is string => !!id && /^Q\d+$/.test(id));
 }
 
-export function buildSparql(industryIds: string[], countryCode: string | undefined, limit: number): string {
-  const countryFilter = countryCode
-    ? `?country wdt:P297 ${JSON.stringify(countryCode)} . ?c wdt:P17 ?country .`
-    : '';
+const countryItems = new Map<string, string | undefined>();
+
+/** ISO code → Wikidata country item ("ID" → "Q252"), cached for the worker's lifetime. */
+async function countryItem(code: string): Promise<string | undefined> {
+  if (!countryItems.has(code)) {
+    const query = `SELECT ?country WHERE { ?country wdt:P297 ${JSON.stringify(code)} } LIMIT 1`;
+    const res = await fetch(`${SPARQL_URL}?${new URLSearchParams({ query })}`, {
+      headers: { Accept: 'application/sparql-results+json', 'User-Agent': 'Utune-AI lead finder' },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) throw new Error(`Wikidata country lookup failed (${res.status})`);
+    const body = (await res.json()) as { results?: { bindings?: { country?: { value?: string } }[] } };
+    const qid = body.results?.bindings?.[0]?.country?.value?.split('/').pop();
+    countryItems.set(code, qid && /^Q\d+$/.test(qid) ? qid : undefined);
+  }
+  return countryItems.get(code);
+}
+
+export function buildSparql(industryIds: string[], countryQid: string | undefined, limit: number): string {
+  // A fixed country item, not a `wdt:P297 "ID"` join — the join made WDQS take 30-40s.
+  const countryFilter = countryQid ? `?c wdt:P17 wd:${countryQid} .` : '';
   // Over-fetch: one company can come back once per website/HQ.
   return `SELECT ?c ?cLabel ?website ?coord ?industryLabel ?hqLabel WHERE {
   VALUES ?industry { ${industryIds.map((id) => `wd:${id}`).join(' ')} }

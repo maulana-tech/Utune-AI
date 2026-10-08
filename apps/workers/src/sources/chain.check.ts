@@ -91,11 +91,11 @@ assert.equal(industryOf('gasket'), undefined); // whole words only
 assert.ok(buildQuery('kontraktor', [1, 2, 3, 4], 5, 'tag').includes('nwr["name"]["craft"="builder"](1,2,3,4);'));
 
 // ── Wikidata ─────────────────────────────────────────────────────────────────
-const sparql = buildSparql(['Q385378', 'Q1'], 'ID', 10);
+const sparql = buildSparql(['Q385378', 'Q1'], 'Q252', 10);
 assert.ok(sparql.includes('VALUES ?industry { wd:Q385378 wd:Q1 }'));
-assert.ok(sparql.includes('?country wdt:P297 "ID"'));
+assert.ok(sparql.includes('?c wdt:P17 wd:Q252 .') && !sparql.includes('P297'));
 assert.ok(sparql.endsWith('LIMIT 30'));
-assert.ok(!buildSparql(['Q1'], undefined, 5).includes('P297'));
+assert.ok(!buildSparql(['Q1'], undefined, 5).includes('P17'));
 const cell = (value: string) => ({ value });
 const wd = wikidataLeads([
   { c: cell('http://www.wikidata.org/entity/Q1'), cLabel: cell('Wijaya Karya'), website: cell('http://www.wika.co.id'), coord: cell('Point(106.8 -6.2)'), industryLabel: cell('construction'), hqLabel: cell('Jakarta') },
@@ -135,12 +135,24 @@ const chain = [
 ];
 const sources = { paid: fake('paid', 3), flaky: fake('flaky', 'boom'), empty: fake('empty', 0), free: fake('free', 2), never: fake('never', 9) };
 const leads = await runChain(chain, sources, req, {});
-assert.deepEqual(calls, ['flaky', 'empty', 'free']);
-assert.deepEqual(leads.map((l) => [l.name, l.source]), [['free0', 'free'], ['free1', 'free']]);
+// free gives 2 of the 5 wanted, so the chain keeps going and `never` fills the rest
+assert.deepEqual(calls, ['flaky', 'empty', 'free', 'never']);
+assert.deepEqual(leads.map((l) => [l.name, l.source]), [['free0', 'free'], ['free1', 'free'], ['never0', 'never'], ['never1', 'never'], ['never2', 'never']]);
 
-// key present → paid wins first
+// key present → paid goes first
 calls.length = 0;
 assert.equal((await runChain(chain, sources, req, { PAID_KEY: 'k' }))[0].source, 'paid');
+// `when` gates a step per request
+calls.length = 0;
+await runChain([{ source: 'paid', env: [], when: () => false }, { source: 'free', env: [] }], sources, { ...req, limit: 2 }, {});
+assert.deepEqual(calls, ['free']);
+// duplicates across sources are dropped (same name modulo PT/Tbk, or same website host)
+const dup = {
+  a: async () => [{ name: 'PT Wijaya Karya (Persero) Tbk', website: 'https://wika.co.id' }],
+  b: async () => [{ name: 'Wijaya Karya' }, { name: 'WIKA Beton', website: 'http://www.wika.co.id/beton' }, { name: 'Adhi Karya' }],
+};
+const deduped = await runChain([{ source: 'a', env: [] }, { source: 'b', env: [] }], dup, { ...req, limit: 10 }, {});
+assert.deepEqual(deduped.map((l) => l.name), ['PT Wijaya Karya (Persero) Tbk', 'Adhi Karya']);
 // all empty → [] (nothing found), all throwing → error naming each source
 assert.deepEqual(await runChain([{ source: 'empty', env: [] }], sources, req, {}), []);
 await assert.rejects(runChain([{ source: 'flaky', env: [] }], sources, req, {}), /flaky: down/);

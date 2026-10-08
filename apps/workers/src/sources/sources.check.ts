@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { toRawLead as apifyLead } from './apify';
 import { toRawLead as osmLead } from './osm';
-import { cleanName, extractEmails, extractPhone, isListingPage, toRawLead as firecrawlLead } from './firecrawl';
+import { cleanName, companyName, extractEmails, extractPhone, isListingPage, toRawLead as firecrawlLead } from './firecrawl';
 
 // ── Apify ────────────────────────────────────────────────────────────────────
 const maps = apifyLead({
@@ -96,3 +96,11 @@ assert.equal(cleanName('PT Limas Anugrah Steel: Selamat Datang'), 'PT Limas Anug
 assert.equal(extractPhone('Established 2021-07-16, NPWP 01.09-0259664'), null);
 assert.equal(extractPhone('Telp: (031) 749 6300'), '(031) 749 6300');
 assert.equal(extractPhone('Reach us on +62 31 749 6300 anytime'), '+62 31 749 6300');
+assert.ok(isListingPage({ url: 'https://www.tribhakti.com/indonesias-largest-mining-contractors/', title: 'Complete List of Indonesia Largest Mining Contractors' }));
+assert.ok(isListingPage({ url: 'https://www.michaelpage.co.id/jobs/construction', title: 'Construction jobs in Indonesia' }));
+assert.ok(isListingPage({ url: 'https://www.fitchratings.com/research/corporate-finance/x', title: 'Indonesia State-Owned Construction Companies' }));
+assert.ok(!isListingPage({ url: 'https://www.paramita.co.id/about-us.php', title: 'General Contractor Paramita Bangun Sarana' }));
+assert.ok(!isListingPage({ url: 'https://meinhardtgroup.com/offices/indonesia/', title: 'Indonesia' }));
+assert.equal(companyName('General Contractor based in Surabaya - PT Archikon', 'Archikon'), 'Archikon');
+assert.equal(companyName('General Contractor based in Surabaya - PT Archikon'), 'PT Archikon');
+assert.equal(companyName('Kontraktor Surabaya | Gudang Pabrik'), 'Kontraktor Surabaya');

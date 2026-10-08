@@ -18,6 +18,9 @@ export const leads = pgTable('leads', {
   whatsapp: jsonb('whatsapp').$type<string[]>(),
   mapsUrl: text('maps_url'),
   pipelineStage: text('pipeline_stage').default('Prospecting'),
+  /** Social intent leads (reddit, twitter, threads, linkedin): the post that matched. */
+  postText: text('post_text'),
+  postedAt: timestamp('posted_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

@@ -31,7 +31,7 @@ export async function enrichFromWebsites(
 ): Promise<RawLead[]> {
   const targets = leads
     .map((lead, i) => ({ lead, key: String(i) }))
-    .filter(({ lead }) => lead.website && !lead.emails?.length && (lead.source ?? jobSource) !== 'places');
+    .filter(({ lead }) => lead.website && !lead.emails?.length && (lead.source ?? jobSource) !== 'places' && !lead.postText);
   if (!targets.length) return leads;
 
   console.log(`[Scrape] Enriching ${targets.length} websites for contacts...`);
@@ -72,7 +72,7 @@ async function enrichWith(
 ): Promise<RawLead[]> {
   const empty = leads
     .map((lead, i) => ({ lead, i }))
-    .filter(({ lead }) => lead.website && !lead.emails?.length && !lead.phone && (lead.source ?? jobSource) !== 'places')
+    .filter(({ lead }) => lead.website && !lead.emails?.length && !lead.phone && (lead.source ?? jobSource) !== 'places' && !lead.postText)
     .slice(0, max);
   if (!empty.length) return leads;
 

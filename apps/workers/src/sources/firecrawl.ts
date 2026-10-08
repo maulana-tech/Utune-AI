@@ -45,11 +45,14 @@ export const scrapeFirecrawl: LeadSourceFn = async ({ query, limit, country, env
 
 /** Directories, socials, news and wikis — pages *about* companies, not a company's own site. */
 const LISTING_HOSTS = [
+  'fitchratings.com', 'michaelpage', 'kompas.com', 'detik.com', 'cnbcindonesia.com', 'bisnis.com',
   'linkedin.com', 'wikipedia.org', 'facebook.com', 'instagram.com', 'youtube.com', 'x.com',
   'twitter.com', 'tiktok.com', 'medium.com', 'reddit.com', 'quora.com', 'scribd.com',
   'fitchsolutions.com', 'glassdoor.com', 'indeed.com', 'jobstreet.co.id', 'crunchbase.com',
   'zoominfo.com', 'dnb.com', 'tracxn.com', 'yellowpages', 'yelp.com', 'tripadvisor.com',
 ];
+/** Sections of a site that are about other companies, not this one. */
+const LISTING_PATH = /\/(jobs?|careers?|lowongan|news|berita|blog|articles?|artikel|research|insights?|wiki|directory|direktori|list|tag|category|kategori)(\/|$)/;
 /** "Top 5 …", "Category: …", "Construction companies in Indonesia", "Daftar perusahaan …". */
 const LISTING_TITLE = /^(top|best|list of|category:|daftar|\d+\s)|\bcompanies (in|of)\b|\bperusahaan\b.*\b(di|terbaik)\b/i;
 
@@ -62,7 +65,19 @@ export function isListingPage(r: Record<string, unknown>): boolean {
   } catch {
     return true;
   }
-  return LISTING_HOSTS.some((h) => host === h || host.endsWith(`.${h}`) || host.includes(h)) || LISTING_TITLE.test(title.trim());
+  let path = '';
+  try {
+    path = new URL(url).pathname.toLowerCase();
+  } catch {
+    // host check above already parsed it
+  }
+  return (
+    LISTING_HOSTS.some((h) => host === h || host.endsWith(`.${h}`) || host.includes(h)) ||
+    LISTING_TITLE.test(title.trim()) ||
+    LISTING_PATH.test(path) ||
+    // a long hyphenated slug is an article ("/indonesias-largest-mining-contractors/")
+    path.split('/').some((seg) => seg.split('-').length >= 4)
+  );
 }
 
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
@@ -79,6 +94,17 @@ const JUNK_EMAIL = [
 
 /** Page titles read "Contact Us | Toko Kopi" — keep the part that is the business. */
 const GENERIC_TITLE = /^(home|beranda|contact|contact us|about|about us|kontak|hubungi kami|welcome|selamat datang|index|official website|situs resmi)$/i;
+
+/**
+ * The business's name for a search result: og:site_name when the site sets one,
+ * else the title part that reads like a company ("General Contractor based in
+ * Surabaya - PT Archikon" → "PT Archikon"), else the first non-generic part.
+ */
+export function companyName(title: string, siteName = ''): string {
+  if (siteName.trim() && !GENERIC_TITLE.test(siteName.trim())) return siteName.trim();
+  const parts = title.split(/[|–—·»]|\s-\s|:\s/).map((p) => p.trim()).filter(Boolean);
+  return parts.find((p) => /\b(PT|CV|Tbk|Ltd|Inc|LLC|Group|Persero)\b/.test(p)) ?? cleanName(title);
+}
 
 export function cleanName(title: string): string {
   const parts = title.split(/[|–—·»]|\s-\s|:\s/).map((p) => p.trim()).filter(Boolean);
@@ -120,9 +146,11 @@ export function toRawLead(result: Record<string, unknown>, query: string): RawLe
   const markdown = typeof result.markdown === 'string' ? result.markdown : '';
   const title = typeof result.title === 'string' ? result.title : '';
   const url = typeof result.url === 'string' ? result.url : null;
+  const meta = (typeof result.metadata === 'object' && result.metadata) || {};
+  const siteName = (meta as Record<string, unknown>).ogSiteName;
 
   return {
-    name: cleanName(title),
+    name: companyName(title, typeof siteName === 'string' ? siteName : ''),
     address: null,
     phone: extractPhone(markdown),
     website: url,

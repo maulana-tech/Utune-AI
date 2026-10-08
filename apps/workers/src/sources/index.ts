@@ -1,5 +1,5 @@
 import type { LeadSourceFn } from './types';
-import { runChain, type ChainStep } from './auto';
+import { runAll, runChain, type ChainStep } from './auto';
 import { scrapePlaces } from './places';
 import { scrapeApollo } from './apollo';
 import { scrapeApify } from './apify';
@@ -13,6 +13,8 @@ import { scrapeSerpapi } from './serpapi';
 import { scrapeOutscraper } from './outscraper';
 import { scrapeYelp } from './yelp';
 import { scrapeWikidata } from './wikidata';
+import { scrapeReddit } from './reddit';
+import { scrapeLinkedin, scrapeThreads, scrapeTwitter } from './social-apify';
 import { industryOf } from './industries';
 import { splitQuery } from './types';
 
@@ -42,6 +44,17 @@ export const AUTO_CHAIN: ChainStep[] = [
 ];
 
 /**
+ * Social listening: posts where someone states a need ("butuh jasa bikin app").
+ * A different kind of lead from AUTO_CHAIN's businesses, so never mixed into it.
+ */
+export const SOCIAL_STEPS: ChainStep[] = [
+  { source: 'reddit', env: ['COMPOSIO_API_KEY'] },
+  { source: 'twitter', env: ['APIFY_TOKEN'] },
+  { source: 'threads', env: ['APIFY_TOKEN'] },
+  { source: 'linkedin', env: ['APIFY_TOKEN'] },
+];
+
+/**
  * Lead sources, keyed by the `source` field on a scrape job.
  * Adding a source = one file here + one entry in `LeadSourceName` (@repo/shared)
  * (+ a spot in AUTO_CHAIN if it should be part of the fallback).
@@ -61,6 +74,11 @@ export const LEAD_SOURCES: Record<string, LeadSourceFn> = {
   outscraper: scrapeOutscraper,
   yelp: scrapeYelp,
   wikidata: scrapeWikidata,
+  social: (req) => runAll(SOCIAL_STEPS, LEAD_SOURCES, req, req.env),
+  reddit: scrapeReddit,
+  twitter: scrapeTwitter,
+  threads: scrapeThreads,
+  linkedin: scrapeLinkedin,
 };
 
 export function getLeadSource(name: string | undefined): LeadSourceFn {

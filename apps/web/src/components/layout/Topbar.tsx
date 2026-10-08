@@ -33,6 +33,11 @@ const SOURCES = [
   { value: 'apollo', label: 'Apollo (LinkedIn data)', hint: 'B2B companies via Composio' },
   { value: 'apify', label: 'Apify', hint: 'Hosted actor — Maps data plus emails' },
   { value: 'firecrawl', label: 'Firecrawl', hint: 'Web search — contacts off the site itself' },
+  { value: 'social', label: 'Social posts (all)', hint: 'Posts where people state a need — e.g. "butuh jasa bikin aplikasi". Searches every connected platform' },
+  { value: 'reddit', label: 'Reddit posts', hint: 'Needs Composio with Reddit connected' },
+  { value: 'linkedin', label: 'LinkedIn posts', hint: 'Needs an Apify token' },
+  { value: 'twitter', label: 'X posts', hint: 'Needs an Apify token' },
+  { value: 'threads', label: 'Threads posts', hint: 'Needs an Apify token' },
   { value: 'wikidata', label: 'Wikidata (companies)', hint: 'Free — established companies & brands by industry, with website' },
   { value: 'overpass', label: 'OpenStreetMap (category)', hint: 'Free — "dentist in bali" style searches' },
   { value: 'osm', label: 'OpenStreetMap (name)', hint: 'Free — Nominatim search' },
@@ -68,6 +73,7 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
   const [scrapeQuery, setScrapeQuery] = useState('');
   const [country, setCountry] = useState('');
   const [source, setSource] = useState('auto');
+  const [limit, setLimit] = useState(25);
 
   useEffect(() => {
     if (status === 'done' || status === 'error') {
@@ -94,7 +100,7 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: capturedQuery,
-          limit: 10,
+          limit,
           workspaceId,
           source,
           ...(country ? { country: country.toLowerCase() } : {}),
@@ -172,6 +178,19 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
             ))}
           </datalist>
         </div>
+        <select
+          value={limit}
+          onChange={(e) => setLimit(Number(e.target.value))}
+          title="How many leads to collect — auto keeps trying sources until it has this many"
+          aria-label="Number of leads"
+          className="h-10 shrink-0 bg-accent/50 border border-border px-2 text-[11px] focus:outline-none focus:border-primary transition-colors"
+        >
+          {[10, 25, 50, 100].map((n) => (
+            <option key={n} value={n}>
+              {n} leads
+            </option>
+          ))}
+        </select>
         <select
           value={source}
           onChange={(e) => setSource(e.target.value)}

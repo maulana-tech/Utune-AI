@@ -101,6 +101,8 @@ export const startScrapeWorker = () => {
           lat:           res.lat       ?? null,
           lng:           res.lng       ?? null,
           category:      res.category  || query,
+          postText:      res.postText  ?? null,
+          postedAt:      res.postedAt  ?? null,
         });
 
         insertedCount++;

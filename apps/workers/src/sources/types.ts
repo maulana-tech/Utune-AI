@@ -16,6 +16,9 @@ export interface RawLead {
   lng?: number | null;
   /** Set by `auto` to the source that actually found this lead. */
   source?: string;
+  /** Social intent leads: the matching post. Such leads are never website-enriched. */
+  postText?: string | null;
+  postedAt?: Date | null;
 }
 
 export interface ScrapeRequest {

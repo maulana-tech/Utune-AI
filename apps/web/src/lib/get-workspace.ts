@@ -19,6 +19,8 @@ export async function getWorkspaceId(): Promise<string> {
   } = await supabase.auth.getUser();
 
   if (!user?.email) {
+    // Local dev without Supabase uses the demo workspace; production never does.
+    if (process.env.NODE_ENV === 'production') throw new Error('Not signed in');
     return DEV_WORKSPACE_ID;
   }
 

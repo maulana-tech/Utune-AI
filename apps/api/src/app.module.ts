@@ -1,5 +1,7 @@
 import { Module, Controller, Get } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { BullModule } from '@nestjs/bullmq';
+import { ApiSecretGuard } from './api-secret.guard';
 import { JobsModule } from './jobs/jobs.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { ScrapeSchedulesModule } from './scrape-schedules/scrape-schedules.module';
@@ -32,6 +34,6 @@ class HealthController {
     AiModule,
   ],
   controllers: [HealthController],
-  providers: [],
+  providers: [{ provide: APP_GUARD, useClass: ApiSecretGuard }],
 })
 export class AppModule {}

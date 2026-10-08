@@ -4,6 +4,7 @@ import { Search, Bell, User, Loader2, CheckCircle2, AlertCircle, X, ArrowRight }
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { apiUrl } from '@/lib/workspace';
 
 type ScrapeStatus = 'idle' | 'scraping' | 'done' | 'error';
 
@@ -93,9 +94,8 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
     setStatus('scraping');
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-      const response = await fetch(`${apiUrl}/jobs/scrape`, {
+      const response = await fetch(`${apiUrl()}/jobs/scrape`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -122,7 +122,7 @@ export function Topbar({ workspaceId }: { workspaceId: string }) {
       const poll = async () => {
         attempts++;
         try {
-          const res = await fetch(`${apiUrl}/leads/search?workspaceId=${workspaceId}&limit=50`);
+          const res = await fetch(`${apiUrl()}/leads/search?workspaceId=${workspaceId}&limit=50`);
           if (res.ok) {
             const data = await res.json();
             const allLeads: Array<{ createdAt: string }> = Array.isArray(data)

@@ -4,6 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import { runAll } from './auto';
+import { buyerQueries, isBuyerIntent } from './intent';
 import { extractPosts, toRawLead as redditLead } from './reddit';
 import { linkedinLead, threadsLead, tweetLead } from './social-apify';
 
@@ -29,6 +30,8 @@ assert.equal(r.postText, 'Butuh jasa bikin aplikasi kasir\n\nBudget 20jt, Jakart
 assert.equal(r.postedAt?.toISOString(), new Date(1759900000 * 1000).toISOString());
 assert.equal(redditLead(posts[1], 'q').name, ''); // deleted author → dropped by the source
 assert.deepEqual(extractPosts({}), []);
+// the shape Composio actually returns today
+assert.equal(extractPosts({ posts: [{ author: 'x', title: 't' }], total_results: 1 }).length, 1);
 
 // ── Apify actors (field names from each actor's dataset schema) ─────────────
 const tw = tweetLead({ text: 'anyone know a dev who can build an app?', url: 'https://x.com/sari_id/status/111', createdAt: 'Tue Oct 07 10:00:00 +0000 2026', author: { name: 'Sari', userName: 'sari_id', url: 'https://x.com/sari_id' } }, 'build an app');
@@ -39,6 +42,18 @@ assert.deepEqual([th.name, th.website, th.postText], ['Dina (@dina.dev)', 'https
 const li = linkedinLead({ content: 'We are looking for a vendor to build our mobile app', linkedinUrl: 'https://www.linkedin.com/posts/x', author: { name: 'Rina Wijaya', info: 'Head of Ops at PT Maju', linkedinUrl: 'https://www.linkedin.com/in/rina' }, postedAt: { date: '2026-10-05T00:00:00Z' } }, 'q');
 assert.deepEqual([li.name, li.website, li.sourceUrl], ['Rina Wijaya — Head of Ops at PT Maju', 'https://www.linkedin.com/in/rina', 'https://www.linkedin.com/posts/x']);
 for (const parse of [tweetLead, threadsLead, linkedinLead]) assert.equal(parse({}, 'q').name, '');
+
+// ── buyer intent filter (real posts from the first live run) ─────────────────
+assert.ok(isBuyerIntent('Halo, ada yang bisa rekomendasi vendor buat bikin aplikasi kasir? Budget 20jt'));
+assert.ok(isBuyerIntent('Looking for a freelance dev to build an MVP app for our clinic, anyone know someone?'));
+assert.ok(!isBuyerIntent('Punya ide aplikasi, website, atau pengen usahamu lebih otomatis? Ngobrol sama kami dulu aja. Halo, kami siap membantu')); // seller
+assert.ok(!isBuyerIntent('tajoki open terus guiss yang butuh jasa joki coding, bikin website, aplikasi, hosting, scraping')); // seller
+assert.ok(!isBuyerIntent('https://t.co/xjkDXnBRKj')); // link only
+assert.ok(!isBuyerIntent('5 "Kebocoran Halus" yang Bikin Gaji Cuma Numpang Lewat (Dan Cara Menyumbatnya)')); // unrelated, no ask
+
+assert.ok(!isBuyerIntent('Tips Praktis Saat Mencari Jasa Tutor di Purwokerto. Butuh jasa tutor? Jangan tunggu')); // content marketing
+assert.deepEqual(buyerQueries('butuh jasa bikin aplikasi'), ['butuh jasa bikin aplikasi', 'cari jasa bikin aplikasi', 'rekomendasi jasa bikin aplikasi', 'ada yang bisa jasa bikin aplikasi']);
+assert.deepEqual(buyerQueries('mobile app developer').slice(1, 3), ['looking for mobile app developer', 'need mobile app developer']);
 
 // ── social fan-out ───────────────────────────────────────────────────────────
 async function checkSocial() {

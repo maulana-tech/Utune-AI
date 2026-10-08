@@ -1,4 +1,5 @@
 import { composioExecute } from './composio';
+import { buyerQueries, keepBuyerIntent, OVERFETCH } from './intent';
 import { isRecord, type LeadSourceFn, type RawLead } from './types';
 
 /**
@@ -11,16 +12,22 @@ import { isRecord, type LeadSourceFn, type RawLead } from './types';
  */
 export const scrapeReddit: LeadSourceFn = async ({ query, limit, workspaceId, env }) => {
   const data = await composioExecute(env, workspaceId, 'reddit', 'REDDIT_SEARCH_ACROSS_SUBREDDITS', {
-    search_query: query,
+    // Reddit search takes OR across quoted phrases.
+    search_query: buyerQueries(query).map((q) => `"${q}"`).join(' OR '),
     sort: 'new',
-    limit: Math.min(limit, 100),
-    restrict_sr: false,
+    limit: Math.min(limit * OVERFETCH, 100),
+    // false sounds broader but comes back empty through Composio; true searches all subreddits' posts.
+    restrict_sr: true,
   });
-  return extractPosts(data).map((p) => toRawLead(p, query)).filter((l) => l.name).slice(0, limit);
+  return keepBuyerIntent(extractPosts(data).map((p) => toRawLead(p, query)).filter((l) => l.name)).slice(0, limit);
 };
 
-/** data.search_results is Reddit's raw Listing: { data: { children: [{ kind, data }] } }. */
+/**
+ * Composio currently returns { posts: [...], total_results, after, before } — flat
+ * post objects, not the `search_results` Listing its schema documents. Accept both.
+ */
 export function extractPosts(data: unknown): Record<string, unknown>[] {
+  if (isRecord(data) && Array.isArray(data.posts)) return data.posts.filter(isRecord);
   const results = isRecord(data) ? data.search_results : undefined;
   const listing = isRecord(results) && isRecord(results.data) ? results.data : undefined;
   const children = listing && Array.isArray(listing.children) ? listing.children : [];

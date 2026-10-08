@@ -5,9 +5,9 @@ import { countryName, fetchJson, firstString, isRecord, splitQuery, type LeadSou
  * Search returns no website or email — `sourceUrl` is the Yelp page.
  * Needs: YELP_API_KEY.
  */
-export const scrapeYelp: LeadSourceFn = async ({ query, limit, country }) => {
-  const key = process.env.YELP_API_KEY;
-  if (!key) throw new Error('YELP_API_KEY is not set — cannot use the yelp source');
+export const scrapeYelp: LeadSourceFn = async ({ query, limit, country, env }) => {
+  const key = env.YELP_API_KEY;
+  if (!key) throw new Error('YELP_API_KEY is not set — cannot use the yelp source (add it in Settings → API keys)');
 
   const { what, where } = splitQuery(query);
   const location = [where, countryName(country)].filter(Boolean).join(', ');

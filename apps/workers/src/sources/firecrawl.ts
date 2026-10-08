@@ -13,9 +13,9 @@ import type { LeadSourceFn, RawLead, ScrapeRequest } from './types';
  * Trade-off vs places/apify: this reads business *websites*, not a directory,
  * so `address` is usually null and `name` comes off the page title.
  */
-export const scrapeFirecrawl: LeadSourceFn = async ({ query, limit, country }: ScrapeRequest) => {
-  const apiKey = process.env.FIRECRAWL_API_KEY;
-  if (!apiKey) throw new Error('FIRECRAWL_API_KEY is not set — cannot use the firecrawl source');
+export const scrapeFirecrawl: LeadSourceFn = async ({ query, limit, country, env }: ScrapeRequest) => {
+  const apiKey = env.FIRECRAWL_API_KEY;
+  if (!apiKey) throw new Error('FIRECRAWL_API_KEY is not set — cannot use the firecrawl source (add it in Settings → API keys)');
 
   const res = await fetch('https://api.firecrawl.dev/v2/search', {
     method: 'POST',
@@ -36,10 +36,34 @@ export const scrapeFirecrawl: LeadSourceFn = async ({ query, limit, country }: S
   const web = Array.isArray(body.data?.web) ? body.data.web : [];
 
   return web
+    .map((r) => r as Record<string, unknown>)
+    .filter((r) => !isListingPage(r))
     .slice(0, limit)
-    .map((r) => toRawLead(r as Record<string, unknown>, query))
+    .map((r) => toRawLead(r, query))
     .filter((lead) => lead.name);
 };
+
+/** Directories, socials, news and wikis — pages *about* companies, not a company's own site. */
+const LISTING_HOSTS = [
+  'linkedin.com', 'wikipedia.org', 'facebook.com', 'instagram.com', 'youtube.com', 'x.com',
+  'twitter.com', 'tiktok.com', 'medium.com', 'reddit.com', 'quora.com', 'scribd.com',
+  'fitchsolutions.com', 'glassdoor.com', 'indeed.com', 'jobstreet.co.id', 'crunchbase.com',
+  'zoominfo.com', 'dnb.com', 'tracxn.com', 'yellowpages', 'yelp.com', 'tripadvisor.com',
+];
+/** "Top 5 …", "Category: …", "Construction companies in Indonesia", "Daftar perusahaan …". */
+const LISTING_TITLE = /^(top|best|list of|category:|daftar|\d+\s)|\bcompanies (in|of)\b|\bperusahaan\b.*\b(di|terbaik)\b/i;
+
+export function isListingPage(r: Record<string, unknown>): boolean {
+  const url = typeof r.url === 'string' ? r.url : '';
+  const title = typeof r.title === 'string' ? r.title : '';
+  let host = '';
+  try {
+    host = new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return true;
+  }
+  return LISTING_HOSTS.some((h) => host === h || host.endsWith(`.${h}`) || host.includes(h)) || LISTING_TITLE.test(title.trim());
+}
 
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 const TEL_RE = /tel:(\+?[\d\s().-]{7,20})/i;
@@ -54,10 +78,10 @@ const JUNK_EMAIL = [
 ];
 
 /** Page titles read "Contact Us | Toko Kopi" — keep the part that is the business. */
-const GENERIC_TITLE = /^(home|contact|contact us|about|about us|kontak|hubungi kami|welcome|index)$/i;
+const GENERIC_TITLE = /^(home|beranda|contact|contact us|about|about us|kontak|hubungi kami|welcome|selamat datang|index|official website|situs resmi)$/i;
 
 export function cleanName(title: string): string {
-  const parts = title.split(/[|–—·»]|\s-\s/).map((p) => p.trim()).filter(Boolean);
+  const parts = title.split(/[|–—·»]|\s-\s|:\s/).map((p) => p.trim()).filter(Boolean);
   return parts.find((p) => !GENERIC_TITLE.test(p)) ?? parts[0] ?? '';
 }
 
@@ -75,10 +99,14 @@ export function extractPhone(markdown: string): string | null {
   const tel = markdown.match(TEL_RE);
   if (tel) return trimToDigits(tel[1]);
 
+  // "Telp: (021) 555 1234" — a labelled number is the site saying it's a phone.
+  const labelled = markdown.match(/(?:tel|telp|telepon|phone|call|hotline)\.?\s*[:.]?\s*(\+?\(?\d[\d\s().-]{6,18}\d)/i);
+  if (labelled) return trimToDigits(labelled[1]);
+
+  // Unlabelled: only international format. Bare digit runs are dates, tax ids, order numbers.
   for (const m of markdown.matchAll(PHONE_RE)) {
     const digits = m[0].replace(/\D/g, '');
-    // Below 9 digits it is a date or a price; above 15 it is not a phone number.
-    if (digits.length >= 9 && digits.length <= 15) return trimToDigits(m[0]);
+    if (m[0].startsWith('+') && digits.length >= 9 && digits.length <= 15) return trimToDigits(m[0]);
   }
   return null;
 }

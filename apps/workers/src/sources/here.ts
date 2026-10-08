@@ -6,9 +6,9 @@ import { countryName, fetchJson, firstString, isRecord, splitQuery, type LeadSou
  * place part of the query (or the job's country) is geocoded first.
  * Needs: HERE_API_KEY.
  */
-export const scrapeHere: LeadSourceFn = async ({ query, limit, country }) => {
-  const key = process.env.HERE_API_KEY;
-  if (!key) throw new Error('HERE_API_KEY is not set — cannot use the here source');
+export const scrapeHere: LeadSourceFn = async ({ query, limit, country, env }) => {
+  const key = env.HERE_API_KEY;
+  if (!key) throw new Error('HERE_API_KEY is not set — cannot use the here source (add it in Settings → API keys)');
 
   const { what, where } = splitQuery(query);
   const place = where || countryName(country);

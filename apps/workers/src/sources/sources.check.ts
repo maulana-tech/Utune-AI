@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { toRawLead as apifyLead } from './apify';
 import { toRawLead as osmLead } from './osm';
-import { cleanName, extractEmails, extractPhone, toRawLead as firecrawlLead } from './firecrawl';
+import { cleanName, extractEmails, extractPhone, isListingPage, toRawLead as firecrawlLead } from './firecrawl';
 
 // ── Apify ────────────────────────────────────────────────────────────────────
 const maps = apifyLead({
@@ -86,3 +86,13 @@ assert.equal(osm.lat, -6.2);
 // the shapes that must not throw
 assert.equal(osmLead({}).name, '');
 assert.equal(osmLead({ extratags: null, lat: 'x' }).lat, null);
+
+// ── Firecrawl listing filter + phone strictness ──────────────────────────────
+assert.ok(isListingPage({ url: 'https://www.linkedin.com/pulse/top-5-construction', title: 'Top 5 Construction Leaders in Indonesia' }));
+assert.ok(isListingPage({ url: 'https://en.wikipedia.org/wiki/Category:X', title: 'Category:Construction companies of Indonesia' }));
+assert.ok(isListingPage({ url: 'https://some-blog.id/x', title: 'Construction companies in Indonesia' }));
+assert.ok(!isListingPage({ url: 'https://ptlas.com/', title: 'PT Limas Anugrah Steel: Selamat Datang' }));
+assert.equal(cleanName('PT Limas Anugrah Steel: Selamat Datang'), 'PT Limas Anugrah Steel');
+assert.equal(extractPhone('Established 2021-07-16, NPWP 01.09-0259664'), null);
+assert.equal(extractPhone('Telp: (031) 749 6300'), '(031) 749 6300');
+assert.equal(extractPhone('Reach us on +62 31 749 6300 anytime'), '+62 31 749 6300');

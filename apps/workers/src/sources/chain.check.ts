@@ -16,6 +16,7 @@ import { toRawLead as yelpLead } from './yelp';
 import { buildSparql, toRawLeads as wikidataLeads } from './wikidata';
 import { industryOf } from './industries';
 import { mergeContacts } from './enrich';
+import { decryptSecret, encryptSecret, isByokKey } from '@repo/db';
 
 // ── query split ──────────────────────────────────────────────────────────────
 assert.deepEqual(splitQuery('dentist in bali'), { what: 'dentist', where: 'bali' });
@@ -104,9 +105,21 @@ const wd = wikidataLeads([
 assert.equal(wd.length, 1);
 assert.deepEqual([wd[0].name, wd[0].website, wd[0].address, wd[0].lat, wd[0].lng], ['Wijaya Karya', 'http://www.wika.co.id', 'Jakarta', -6.2, 106.8]);
 
+// ── BYOK secrets ─────────────────────────────────────────────────────────────
+process.env.SECRETS_KEY ??= 'check-only-secret';
+const sealed = encryptSecret('AIza-test-key');
+assert.ok(sealed.startsWith('v1:') && !sealed.includes('AIza'));
+assert.equal(decryptSecret(sealed), 'AIza-test-key');
+assert.notEqual(encryptSecret('same'), encryptSecret('same')); // random IV
+const parts = sealed.split(':');
+parts[3] = Buffer.from('tampered').toString('base64');
+assert.throws(() => decryptSecret(parts.join(':'))); // GCM auth tag catches tampering
+assert.ok(isByokKey('GOOGLE_MAPS_API_KEY'));
+assert.ok(!isByokKey('DATABASE_URL') && !isByokKey('CAMOFOX_URL')); // infra is never per-workspace
+
 // ── auto chain ───────────────────────────────────────────────────────────────
 async function checkChain() {
-const req = { query: 'x', limit: 5, workspaceId: 'w' };
+const req = { query: 'x', limit: 5, workspaceId: 'w', env: {} };
 const calls: string[] = [];
 const fake = (name: string, result: 'boom' | number) => async () => {
   calls.push(name);

@@ -6,9 +6,9 @@ import { countryName, fetchJson, firstString, isRecord, splitQuery, type LeadSou
  *
  * ponytail: one page (max 50). Follow the Link-header cursor if users need more per job.
  */
-export const scrapeFoursquare: LeadSourceFn = async ({ query, limit, country }) => {
-  const key = process.env.FOURSQUARE_API_KEY;
-  if (!key) throw new Error('FOURSQUARE_API_KEY is not set — cannot use the foursquare source');
+export const scrapeFoursquare: LeadSourceFn = async ({ query, limit, country, env }) => {
+  const key = env.FOURSQUARE_API_KEY;
+  if (!key) throw new Error('FOURSQUARE_API_KEY is not set — cannot use the foursquare source (add it in Settings → API keys)');
 
   const { what, where } = splitQuery(query);
   const near = [where, countryName(country)].filter(Boolean).join(', ');

@@ -34,8 +34,9 @@ export const AUTO_CHAIN: ChainStep[] = [
   { source: 'here', env: ['HERE_API_KEY'] },
   { source: 'tomtom', env: ['TOMTOM_API_KEY'] },
   { source: 'yelp', env: ['YELP_API_KEY'] },
-  { source: 'firecrawl', env: ['FIRECRAWL_API_KEY'] },
+  // Wikidata before Firecrawl: for B2B, real company records beat web-search pages.
   { source: 'wikidata', env: [], when: isB2B },
+  { source: 'firecrawl', env: ['FIRECRAWL_API_KEY'] },
   { source: 'overpass', env: [] },
   { source: 'osm', env: [] },
 ];
@@ -46,7 +47,7 @@ export const AUTO_CHAIN: ChainStep[] = [
  * (+ a spot in AUTO_CHAIN if it should be part of the fallback).
  */
 export const LEAD_SOURCES: Record<string, LeadSourceFn> = {
-  auto: (req) => runChain(AUTO_CHAIN, LEAD_SOURCES, req),
+  auto: (req) => runChain(AUTO_CHAIN, LEAD_SOURCES, req, req.env),
   places: scrapePlaces,
   apollo: scrapeApollo,
   apify: scrapeApify,

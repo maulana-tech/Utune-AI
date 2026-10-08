@@ -1,6 +1,7 @@
 import { Worker } from 'bullmq';
 import { eq, sql, and, ilike } from 'drizzle-orm';
 import { db, leads, scrapeSchedules, jobs } from '@repo/db';
+import { getWorkspaceKeys } from '@repo/db';
 import { getLeadSource, type RawLead } from '../sources';
 import { enrichFromWebsites } from '../sources/enrich';
 
@@ -18,6 +19,8 @@ export const startScrapeWorker = () => {
         source?: string;
       };
       const sourceName = source ?? 'auto';
+      // BYOK: keys the workspace saved in Settings win over the server's .env.
+      const env = { ...process.env, ...(await getWorkspaceKeys(workspaceId)) };
 
       console.log(
         `[Scrape] Starting scrape: source=${sourceName} query="${query}" ` +
@@ -33,7 +36,7 @@ export const startScrapeWorker = () => {
 
       let rawResults: RawLead[];
       try {
-        rawResults = await getLeadSource(sourceName)({ query, limit, country, workspaceId });
+        rawResults = await getLeadSource(sourceName)({ query, limit, country, workspaceId, env });
       } catch (err) {
         if (jobId) {
           await db
@@ -56,7 +59,7 @@ export const startScrapeWorker = () => {
       }
 
       console.log(`[Scrape] Scraped ${rawResults.length} results for "${query}"`);
-      rawResults = await enrichFromWebsites(rawResults, sourceName);
+      rawResults = await enrichFromWebsites(rawResults, sourceName, env);
 
       // Names that indicate scraper picked up a non-business element
       const BAD_NAMES = new Set(['json', 'null', 'undefined', 'n/a', 'na', 'loading', 'unknown']);

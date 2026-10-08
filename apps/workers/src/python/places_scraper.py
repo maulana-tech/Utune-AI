@@ -222,8 +222,16 @@ def text_search(query: str, limit: int) -> list:
             break
 
         status = data.get('status')
+        if status == 'ZERO_RESULTS':
+            break
         if status != 'OK':
-            print(f'[WARN] Text search status: {status} — {data.get("error_message", "")}', file=sys.stderr)
+            message = f'Google Places {status}: {data.get("error_message", "")}'.strip()
+            if not results:
+                # Bad/denied key or quota on the first page is a failure, not "0 leads" —
+                # exit non-zero so the job fails loudly and `auto` moves to the next source.
+                print(f'[ERROR] {message}', file=sys.stderr)
+                sys.exit(1)
+            print(f'[WARN] {message} — keeping {len(results)} results', file=sys.stderr)
             break
 
         for place in data.get('results', []):

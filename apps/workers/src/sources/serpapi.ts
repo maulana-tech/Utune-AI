@@ -8,9 +8,9 @@ const MAX_PAGES = 6; // SerpApi recommends stopping at start=100
  * Each page is one billed search. No email in the data.
  * Needs: SERPAPI_API_KEY.
  */
-export const scrapeSerpapi: LeadSourceFn = async ({ query, limit, country }) => {
-  const key = process.env.SERPAPI_API_KEY;
-  if (!key) throw new Error('SERPAPI_API_KEY is not set — cannot use the serpapi source');
+export const scrapeSerpapi: LeadSourceFn = async ({ query, limit, country, env }) => {
+  const key = env.SERPAPI_API_KEY;
+  if (!key) throw new Error('SERPAPI_API_KEY is not set — cannot use the serpapi source (add it in Settings → API keys)');
 
   const leads: RawLead[] = [];
   for (let page = 0; page < MAX_PAGES && leads.length < limit; page++) {

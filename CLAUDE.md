@@ -214,17 +214,19 @@ See `COMPETITION.md` for the lead-scoring architecture explanation.
 
 - `types.ts` — `RawLead` (what a source returns) + `ScrapeRequest` (query, limit, country, workspaceId)
 - `places.ts` — Google Places via the Python scraper (`GOOGLE_MAPS_API_KEY`)
-- `apollo.ts` — Apollo company search through **Composio** (`APOLLO_ORGANIZATION_SEARCH`), needs `COMPOSIO_API_KEY` + an Apollo account connected for `COMPOSIO_USER_ID` (falls back to the workspace id)
+- `apollo.ts` — Apollo company search through **Composio** (`APOLLO_ORGANIZATION_SEARCH`), needs `COMPOSIO_API_KEY` + an active Apollo connection in that Composio project. The Composio user id is `COMPOSIO_USER_ID` if set, else looked up from the active connections (dashboard/playground connections get ids like `pg-test-…`). **Apollo's Free plan blocks this endpoint (403 `API_INACCESSIBLE`)** — needs a paid Apollo plan
 - `apify.ts` — Apify hosted actors, one sync HTTP call (`APIFY_TOKEN`, optional `APIFY_ACTOR_ID`; defaults to `compass/crawler-google-places`)
-- `firecrawl.ts` — Firecrawl `/v2/search` + markdown, contacts pulled by regex, no LLM (`FIRECRAWL_API_KEY`)
+- `firecrawl.ts` — Firecrawl `/v2/search` + markdown, contacts pulled by regex, no LLM (`FIRECRAWL_API_KEY`). Drops listing pages (`isListingPage`: LinkedIn/Wikipedia/directories, "Top 5…"/"companies in…" titles); phones only from `tel:`, a "Tel/Telp:" label, or `+`-international format
 - `outscraper.ts`, `serpapi.ts` — Google Maps data via paid APIs (`OUTSCRAPER_API_KEY`, `SERPAPI_API_KEY`)
 - `foursquare.ts`, `here.ts`, `tomtom.ts`, `yelp.ts` — POI APIs (`FOURSQUARE_API_KEY` service key on the new `places-api.foursquare.com` host, `HERE_API_KEY`, `TOMTOM_API_KEY`, `YELP_API_KEY`)
 - `overpass.ts` — keyless OpenStreetMap by **tag** inside a geocoded bbox ("dentist in bali"); public instances with fallback, `OVERPASS_URL` pins one
 - `osm.ts` — keyless OpenStreetMap by **name** via Nominatim; also exports `geocode()` used by `overpass`/`here`
 - `wikidata.ts` — keyless **B2B company** finder: companies by industry (P452) + country, nearly always with a website, no phone/email. Industry ids resolved via `wbsearchentities`, then one SPARQL query
 - `industries.ts` — B2B vocabulary (construction, oil & gas, mining, logistics, FMCG brands, …, with Indonesian aliases like `kontraktor`, `migas`, `sawit`) → Wikidata industry terms + OSM tags. `industryOf(what)` is also how `auto` decides a query is B2B
-- `auto.ts` + `AUTO_CHAIN` in `index.ts` — the **default source**. Tries every source whose key is set in order (places → apollo* → outscraper → serpapi → apify → foursquare → here → tomtom → yelp → firecrawl → wikidata* → overpass → osm; *only for B2B queries), moving on when one throws or returns 0; leads are tagged with the source that actually hit (`RawLead.source`), so `leads.source` is never `'auto'`
+- `auto.ts` + `AUTO_CHAIN` in `index.ts` — the **default source**. Tries every source whose key is set in order (places → apollo* → outscraper → serpapi → apify → foursquare → here → tomtom → yelp → wikidata* → firecrawl → overpass → osm; *only for B2B queries — Wikidata sits before Firecrawl because web search returns listicles for "X companies in Y"), moving on when one throws or returns 0; leads are tagged with the source that actually hit (`RawLead.source`), so `leads.source` is never `'auto'`
 - `index.ts` — `LEAD_SOURCES` map + `getLeadSource(name)`
+
+**BYOK (per-workspace keys):** Settings → API keys saves a workspace's own source keys to `workspace_api_keys` (AES-256-GCM via `SECRETS_KEY`; helpers + the `BYOK_KEYS` allow-list in `packages/db/src/secrets.ts`). The scrape worker builds `env = { ...process.env, ...getWorkspaceKeys(workspaceId) }` and passes it as `ScrapeRequest.env` — **sources must read keys from `req.env`, never `process.env`**. Only names in `BYOK_KEYS` can be overridden; infra (`CAMOFOX_URL`, `OVERPASS_URL`, DB/Redis) stays server-only. Plaintext keys never reach the client (Settings shows the last 4 chars).
 
 **Adding a source:** one file exporting a `LeadSourceFn`, one entry in `LEAD_SOURCES`, one value in `LeadSourceNameSchema` (`packages/shared/src/jobs.ts`), an option in `SOURCES` in `Topbar.tsx`, and a step in `AUTO_CHAIN` if it should be part of the fallback.
 

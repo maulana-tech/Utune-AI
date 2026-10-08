@@ -11,3 +11,4 @@ export * from './lead_notes';
 export * from './email_outreach';
 export * from './email_templates';
 export * from './email_sequences';
+export * from './workspace_api_keys';

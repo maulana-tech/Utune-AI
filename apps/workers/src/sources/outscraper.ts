@@ -4,9 +4,9 @@ import { fetchJson, firstString, isRecord, type LeadSourceFn, type RawLead } fro
  * Outscraper Google Maps search, synchronous mode (one query per request keeps it sync).
  * Needs: OUTSCRAPER_API_KEY.
  */
-export const scrapeOutscraper: LeadSourceFn = async ({ query, limit, country }) => {
-  const key = process.env.OUTSCRAPER_API_KEY;
-  if (!key) throw new Error('OUTSCRAPER_API_KEY is not set — cannot use the outscraper source');
+export const scrapeOutscraper: LeadSourceFn = async ({ query, limit, country, env }) => {
+  const key = env.OUTSCRAPER_API_KEY;
+  if (!key) throw new Error('OUTSCRAPER_API_KEY is not set — cannot use the outscraper source (add it in Settings → API keys)');
 
   const params = new URLSearchParams({
     query,

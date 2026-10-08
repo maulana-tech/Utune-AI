@@ -7,14 +7,15 @@ import type { LeadSourceFn, RawLead, ScrapeRequest } from './types';
  * website for emails / WhatsApp numbers.
  * Needs: GOOGLE_MAPS_API_KEY. Without it, use the `auto` source to fall back to others.
  */
-export const scrapePlaces: LeadSourceFn = async ({ query, limit, country }: ScrapeRequest) => {
-  if (!process.env.GOOGLE_MAPS_API_KEY) throw new Error('GOOGLE_MAPS_API_KEY is not set — cannot use the places source');
+export const scrapePlaces: LeadSourceFn = async ({ query, limit, country, env }: ScrapeRequest) => {
+  if (!env.GOOGLE_MAPS_API_KEY) throw new Error('GOOGLE_MAPS_API_KEY is not set — cannot use the places source (add it in Settings → API keys)');
   // 3rd arg = country bias; '' means global (scraper defaults to English results).
-  const rows = await runPython<Record<string, unknown>[]>('places_scraper.py', [
-    query,
-    String(limit),
-    (country ?? '').toLowerCase(),
-  ]);
+  const rows = await runPython<Record<string, unknown>[]>(
+    'places_scraper.py',
+    [query, String(limit), (country ?? '').toLowerCase()],
+    undefined,
+    env,
+  );
 
   return rows.map((r): RawLead => ({
     name: String(r.name ?? '').trim(),
@@ -31,11 +32,16 @@ export const scrapePlaces: LeadSourceFn = async ({ query, limit, country }: Scra
 };
 
 /** Run a script from ../python with the worker's venv; stdout must be JSON. */
-export function runPython<T>(script: string, args: string[], stdin?: string): Promise<T> {
+export function runPython<T>(
+  script: string,
+  args: string[],
+  stdin?: string,
+  env: Record<string, string | undefined> = process.env,
+): Promise<T> {
   return new Promise((resolve, reject) => {
     const scriptPath = path.resolve(__dirname, '../python', script);
     const pythonExec = path.resolve(__dirname, '../../.venv/bin/python');
-    const proc = spawn(pythonExec, [scriptPath, ...args], { env: { ...process.env } });
+    const proc = spawn(pythonExec, [scriptPath, ...args], { env });
 
     let stdout = '';
     let stderr = '';

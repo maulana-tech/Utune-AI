@@ -5,9 +5,9 @@ import { fetchJson, firstString, isRecord, type LeadSourceFn, type RawLead } fro
  * "dentist in bali" is understood without geocoding. No email in the data.
  * Needs: TOMTOM_API_KEY.
  */
-export const scrapeTomtom: LeadSourceFn = async ({ query, limit, country }) => {
-  const key = process.env.TOMTOM_API_KEY;
-  if (!key) throw new Error('TOMTOM_API_KEY is not set — cannot use the tomtom source');
+export const scrapeTomtom: LeadSourceFn = async ({ query, limit, country, env }) => {
+  const key = env.TOMTOM_API_KEY;
+  if (!key) throw new Error('TOMTOM_API_KEY is not set — cannot use the tomtom source (add it in Settings → API keys)');
 
   const params = new URLSearchParams({ key, limit: String(Math.min(limit, 100)), idxSet: 'POI', language: 'en-GB' });
   if (country) params.set('countrySet', country.toUpperCase());

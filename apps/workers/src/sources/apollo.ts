@@ -16,9 +16,10 @@ export const scrapeApollo: LeadSourceFn = async ({
   limit,
   country,
   workspaceId,
+  env,
 }: ScrapeRequest) => {
-  const apiKey = process.env.COMPOSIO_API_KEY;
-  if (!apiKey) throw new Error('COMPOSIO_API_KEY is not set — cannot use the apollo source');
+  const apiKey = env.COMPOSIO_API_KEY;
+  if (!apiKey) throw new Error('COMPOSIO_API_KEY is not set — cannot use the apollo source (add it in Settings → API keys)');
 
   // @composio/core is ESM-only and this app compiles to CommonJS, so it has to be
   // imported dynamically. Bonus: workers that never scrape Apollo never load it.
@@ -29,7 +30,7 @@ export const scrapeApollo: LeadSourceFn = async ({
   const { what, where } = splitQuery(query);
   const locations = [where, countryName(country)].filter((l): l is string => !!l);
   const result = await composio.tools.execute('APOLLO_ORGANIZATION_SEARCH', {
-    userId: process.env.COMPOSIO_USER_ID || workspaceId,
+    userId: env.COMPOSIO_USER_ID || (await apolloUserId(apiKey, workspaceId)),
     arguments: {
       q_organization_keyword_tags: [what],
       ...(locations.length ? { organization_locations: locations } : {}),
@@ -45,6 +46,24 @@ export const scrapeApollo: LeadSourceFn = async ({
 
   return extractOrganizations(result.data).slice(0, limit).map(toRawLead);
 };
+
+/**
+ * The Composio user that owns an active Apollo connection. Connections made in the
+ * Composio dashboard/playground get ids like "pg-test-…", not our workspace id, so
+ * look it up: this workspace's own connection if there is one, else the first active
+ * one in the Composio project this key belongs to.
+ */
+async function apolloUserId(apiKey: string, workspaceId: string): Promise<string> {
+  const res = await fetch(
+    'https://backend.composio.dev/api/v3/connected_accounts?toolkit_slugs=apollo&statuses=ACTIVE',
+    { headers: { 'x-api-key': apiKey } },
+  );
+  if (!res.ok) throw new Error(`Composio connected accounts lookup failed (${res.status})`);
+  const body = (await res.json()) as { items?: { user_id?: string }[] };
+  const users = (body.items ?? []).map((a) => a.user_id).filter((u): u is string => !!u);
+  if (!users.length) throw new Error('No active Apollo connection in Composio — connect Apollo at app.composio.dev');
+  return users.includes(workspaceId) ? workspaceId : users[0];
+}
 
 /**
  * Composio returns the provider's raw payload, and Apollo has used both

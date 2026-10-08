@@ -24,6 +24,11 @@ export interface ScrapeRequest {
   /** ISO-3166 alpha-2, '' or undefined = global. */
   country?: string;
   workspaceId: string;
+  /**
+   * Keys/config for this job: the workspace's own keys (BYOK, Settings page) layered
+   * over the server's process.env. Sources read keys from here, never process.env.
+   */
+  env: Record<string, string | undefined>;
 }
 
 export type LeadSourceFn = (req: ScrapeRequest) => Promise<RawLead[]>;

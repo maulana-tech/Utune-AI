@@ -1,7 +1,8 @@
-import { db, workspaces } from '@repo/db';
+import { BYOK_KEYS, db, decryptSecret, workspaceApiKeys, workspaces } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { getWorkspaceId } from '@/lib/get-workspace';
 import { BusinessContextForm } from './BusinessContextForm';
+import { ApiKeysForm } from './ApiKeysForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,22 @@ export default async function SettingsPage() {
     .from(workspaces)
     .where(eq(workspaces.id, workspaceId))
     .limit(1);
+
+  // Only the last 4 characters ever leave the server.
+  const saved = await db
+    .select({ name: workspaceApiKeys.name, value: workspaceApiKeys.value })
+    .from(workspaceApiKeys)
+    .where(eq(workspaceApiKeys.workspaceId, workspaceId));
+  const last4 = new Map(
+    saved.map((k) => {
+      try {
+        return [k.name, decryptSecret(k.value).slice(-4)];
+      } catch {
+        return [k.name, '????']; // undecryptable (SECRETS_KEY changed) — show it so it can be replaced
+      }
+    }),
+  );
+  const keyRows = BYOK_KEYS.map((k) => ({ ...k, last4: last4.get(k.name) ?? null }));
 
   return (
     <div className="p-6 max-w-2xl">
@@ -29,6 +46,16 @@ export default async function SettingsPage() {
             workspaceId={workspaceId}
             initialValue={workspace?.businessContext ?? ''}
           />
+        </div>
+
+        <div>
+          <h2 className="text-sm font-bold tracking-tight mb-1">API keys (bring your own)</h2>
+          <p className="text-xs text-muted-foreground mb-3">
+            Keys for lead sources, used only for this workspace's scrapes. A key saved here takes
+            priority over the server&apos;s; without one the source falls back to the server key, if
+            it has one. Keys are encrypted at rest and never shown again — only the last 4 characters.
+          </p>
+          <ApiKeysForm rows={keyRows} />
         </div>
       </div>
     </div>

@@ -24,7 +24,11 @@ interface SiteContacts {
  *      contacts written in ways regex misses. ~5 credits/site, capped at
  *      SGAI_ENRICH_MAX. The LLM runs on ScrapeGraph's side: our token cost stays zero.
  */
-export async function enrichFromWebsites(leads: RawLead[], jobSource: string): Promise<RawLead[]> {
+export async function enrichFromWebsites(
+  leads: RawLead[],
+  jobSource: string,
+  env: Record<string, string | undefined>,
+): Promise<RawLead[]> {
   const targets = leads
     .map((lead, i) => ({ lead, key: String(i) }))
     .filter(({ lead }) => lead.website && !lead.emails?.length && (lead.source ?? jobSource) !== 'places');
@@ -45,9 +49,12 @@ export async function enrichFromWebsites(leads: RawLead[], jobSource: string): P
   }
 
   let out = mergeContacts(leads, found);
+  // camofox is our own infra (server env); Firecrawl/ScrapeGraph keys can be the workspace's own (BYOK).
   if (process.env.CAMOFOX_URL) out = await enrichWith('camofox', out, jobSource, CAMOFOX_ENRICH_MAX, camofoxContacts);
-  if (process.env.FIRECRAWL_API_KEY) out = await enrichWith('Firecrawl', out, jobSource, FIRECRAWL_ENRICH_MAX, firecrawlContacts);
-  if (process.env.SGAI_API_KEY) out = await enrichWith('ScrapeGraphAI', out, jobSource, SGAI_ENRICH_MAX, scrapegraphContacts);
+  const firecrawlKey = env.FIRECRAWL_API_KEY;
+  if (firecrawlKey) out = await enrichWith('Firecrawl', out, jobSource, FIRECRAWL_ENRICH_MAX, (url) => firecrawlContacts(url, firecrawlKey));
+  const sgaiKey = env.SGAI_API_KEY;
+  if (sgaiKey) out = await enrichWith('ScrapeGraphAI', out, jobSource, SGAI_ENRICH_MAX, (url) => scrapegraphContacts(url, sgaiKey));
   return out;
 }
 
@@ -131,10 +138,10 @@ async function camofoxContacts(url: string): Promise<SiteContacts> {
 }
 
 /** ScrapeGraphAI v2 (the v1 api.scrapegraphai.com host is deprecated). */
-async function scrapegraphContacts(url: string): Promise<SiteContacts & { address: string | null }> {
+async function scrapegraphContacts(url: string, apiKey: string): Promise<SiteContacts & { address: string | null }> {
   const res = await fetch('https://v2-api.scrapegraphai.com/api/extract', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'SGAI-APIKEY': process.env.SGAI_API_KEY! },
+    headers: { 'Content-Type': 'application/json', 'SGAI-APIKEY': apiKey },
     body: JSON.stringify({
       url,
       prompt:
@@ -166,21 +173,21 @@ async function scrapegraphContacts(url: string): Promise<SiteContacts & { addres
 }
 
 /** Homepage, then the first contact page it links to if the homepage had no email. */
-async function firecrawlContacts(url: string): Promise<SiteContacts> {
-  const home = await firecrawlScrape(url);
+async function firecrawlContacts(url: string, apiKey: string): Promise<SiteContacts> {
+  const home = await firecrawlScrape(url, apiKey);
   let markdown = home.markdown;
   if (!extractEmails(markdown).length) {
     const contact = home.links.find((l) => /contact|kontak|hubungi/i.test(l));
-    if (contact) markdown += `\n${(await firecrawlScrape(contact)).markdown}`;
+    if (contact) markdown += `\n${(await firecrawlScrape(contact, apiKey)).markdown}`;
   }
   const phone = extractPhone(markdown);
   return { emails: extractEmails(markdown), whatsapp: [], phones: phone ? [phone] : [] };
 }
 
-async function firecrawlScrape(url: string): Promise<{ markdown: string; links: string[] }> {
+async function firecrawlScrape(url: string, apiKey: string): Promise<{ markdown: string; links: string[] }> {
   const res = await fetch('https://api.firecrawl.dev/v2/scrape', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ url, formats: ['markdown', 'links'], onlyMainContent: false }),
     signal: AbortSignal.timeout(90_000),
   });

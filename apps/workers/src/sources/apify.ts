@@ -13,12 +13,12 @@ const DEFAULT_ACTOR = 'compass/crawler-google-places';
  * ponytail: run-sync caps at ~5 min, so a big `limit` can 408. Switch to the
  * async /runs endpoint + polling only when that actually starts happening.
  */
-export const scrapeApify: LeadSourceFn = async ({ query, limit, country }: ScrapeRequest) => {
-  const token = process.env.APIFY_TOKEN;
-  if (!token) throw new Error('APIFY_TOKEN is not set — cannot use the apify source');
+export const scrapeApify: LeadSourceFn = async ({ query, limit, country, env }: ScrapeRequest) => {
+  const token = env.APIFY_TOKEN;
+  if (!token) throw new Error('APIFY_TOKEN is not set — cannot use the apify source (add it in Settings → API keys)');
 
   // Apify writes `username/actor` as `username~actor` in URLs.
-  const actor = (process.env.APIFY_ACTOR_ID || DEFAULT_ACTOR).replace('/', '~');
+  const actor = (env.APIFY_ACTOR_ID || DEFAULT_ACTOR).replace('/', '~');
 
   const res = await fetch(
     `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?limit=${limit}`,

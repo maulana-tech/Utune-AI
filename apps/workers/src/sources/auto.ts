@@ -17,7 +17,7 @@ export async function runChain(
   chain: ChainStep[],
   sources: Record<string, LeadSourceFn>,
   req: ScrapeRequest,
-  env: Record<string, string | undefined> = process.env,
+  env: Record<string, string | undefined>,
 ): Promise<RawLead[]> {
   const tried: string[] = [];
   for (const step of chain) {

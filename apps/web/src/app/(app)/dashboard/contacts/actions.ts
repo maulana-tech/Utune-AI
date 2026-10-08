@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
-import { db, emailTemplates, leadNotes, leads } from '@repo/db';
+import { db, emailTemplates, getWorkspaceKeys, leadNotes, leads, sendAndRecord } from '@repo/db';
 import { getWorkspaceId } from '@/lib/get-workspace';
 
 // Workspace always comes from the session, never from the client.
@@ -35,7 +35,11 @@ export async function deleteTemplate(id: string) {
 }
 
 /** Record a sent follow-up as a lead note and move untouched leads to "Contacted". */
-export async function logFollowUp(leadId: string, channel: 'whatsapp' | 'email' | 'copy', templateName: string) {
+export async function logFollowUp(
+  leadId: string,
+  channel: 'whatsapp' | 'email' | 'email (sent from app)' | 'copy',
+  templateName: string,
+) {
   const workspaceId = await getWorkspaceId();
   const [lead] = await db
     .select({ id: leads.id, stage: leads.pipelineStage })
@@ -58,4 +62,35 @@ export async function logFollowUp(leadId: string, channel: 'whatsapp' | 'email' 
       .where(eq(leads.id, leadId));
   }
   revalidatePath('/dashboard/contacts');
+}
+
+/**
+ * Send the rendered template to the lead's first email address through the shared
+ * mailer (EMAIL_PROVIDER: Gmail via Composio by default). Returns the error instead of
+ * throwing — Next hides thrown server-action messages in production.
+ */
+export async function sendLeadEmail(
+  leadId: string,
+  subject: string,
+  body: string,
+  templateName: string,
+): Promise<{ ok: true; provider: string } | { ok: false; error: string }> {
+  const workspaceId = await getWorkspaceId();
+  const [lead] = await db
+    .select({ emails: leads.emails })
+    .from(leads)
+    .where(and(eq(leads.id, leadId), eq(leads.workspaceId, workspaceId)))
+    .limit(1);
+  const to = lead?.emails?.[0];
+  if (!to) return { ok: false, error: 'This lead has no email address' };
+  if (!subject.trim() || !body.trim()) return { ok: false, error: 'Subject and message are required' };
+
+  try {
+    const env = { ...process.env, ...(await getWorkspaceKeys(workspaceId)) };
+    const result = await sendAndRecord({ workspaceId, leadId, to, subject, body }, env);
+    await logFollowUp(leadId, 'email (sent from app)', templateName);
+    return { ok: true, provider: result.provider ?? 'email' };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }

@@ -10,3 +10,4 @@ const pool = new Pool({
 export const db = drizzle(pool, { schema });
 export * from './schema/all';
 export * from './secrets';
+export * from './mailer';

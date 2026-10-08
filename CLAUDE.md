@@ -261,9 +261,12 @@ Notes:
 
 ## Email Outreach
 
-Two send paths, selected by `EMAIL_PROVIDER`:
-- **Resend** (`apps/api/src/email/email.service.ts`) — API-based, supports tracking; delivery/open/click events land on `apps/web/src/app/api/webhooks/resend/route.ts` and `apps/api/src/email/webhooks.controller.ts`, matched back to `email_outreach.resendEmailId`
-- **SumoPod SMTP** (`smtp.service.ts` in API, nodemailer again in `cron/email-scheduler.ts`) — simple send, no tracking
+**One mailer for everything:** `packages/db/src/mailer.ts` (`deliverEmail`, `sendAndRecord`, `sendDueEmails`), used by the API (`email/mail.service.ts`), the worker's `cron/email-scheduler.ts`, and the web Contacts page (`sendLeadEmail` server action). `EMAIL_PROVIDER` picks the transport:
+- **`gmail`** (default) — the workspace's Gmail via Composio REST (`GMAIL_SEND_EMAIL`, `COMPOSIO_API_KEY`, BYOK-able). Sends as the connected Gmail address; no tracking; ~500/day Gmail limit
+- **`resend`** — `RESEND_API_KEY` + `RESEND_FROM_EMAIL` on a verified domain (both BYOK-able). Delivery/open/click webhooks land on `apps/web/src/app/api/webhooks/resend/route.ts`; `email/email.service.ts` now only holds that webhook bookkeeping, matched on `email_outreach.resendEmailId` (which stores every provider's message id)
+- **`smtp`** (alias `sumopod`) — SumoPod SMTP via nodemailer (`SUMOPOD_SMTP_*`, `SUMOPOD_FROM_EMAIL`)
+
+Every send is recorded in `email_outreach` (draft when `scheduledFor` is set, then queued → sent/failed). Keys are resolved per workspace (`process.env` + `getWorkspaceKeys`).
 
 `EmailModule` is **not** registered in `app.module.ts`; it reaches the HTTP layer through `LeadsModule` (`POST /leads/:id/email` drafts with the cold-email agent, `POST /leads/:id/send-email` sends). Templates and sequences have their own controllers (`templates.controller.ts`, `sequences.controller.ts`) — reachable only if their module is wired in, so check before assuming an endpoint is live.
 

@@ -14,14 +14,12 @@
     "bullmq": "^5.0.0",
     "drizzle-orm": "^0.45.2",
     "ioredis": "^5.4.0",
-    "node-cron": "^3.0.3",
-    "nodemailer": "^7.0.0"
+    "node-cron": "^3.0.3"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.0.0",
     "@types/node-cron": "^3.0.11",
-    "@types/nodemailer": "^7.0.0",
     "dotenv-cli": "^11.0.0",
     "tsx": "^4.22.3",
     "typescript": "^5.7.0"

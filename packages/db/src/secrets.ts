@@ -20,6 +20,8 @@ export const BYOK_KEYS = [
   { name: 'YELP_API_KEY', label: 'Yelp Fusion', sources: ['yelp'], url: 'https://www.yelp.com/developers' },
   { name: 'FIRECRAWL_API_KEY', label: 'Firecrawl', sources: ['firecrawl'], url: 'https://firecrawl.dev/app/api-keys' },
   { name: 'SGAI_API_KEY', label: 'ScrapeGraphAI (contact enrichment)', sources: [], url: 'https://dashboard.scrapegraphai.com' },
+  { name: 'RESEND_API_KEY', label: 'Resend (email sending)', sources: [], url: 'https://resend.com/api-keys' },
+  { name: 'RESEND_FROM_EMAIL', label: 'Resend sender address (verified domain)', sources: [], url: 'https://resend.com/domains' },
 ] as const;
 
 export type ByokKeyName = (typeof BYOK_KEYS)[number]['name'];

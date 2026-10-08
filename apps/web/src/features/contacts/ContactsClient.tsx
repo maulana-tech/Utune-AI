@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from 'react';
 import { BookOpen, Check, Copy, Loader2, Mail, MessageCircle, Pencil, Phone, Plus, Search, Trash2, X } from 'lucide-react';
-import { deleteTemplate, logFollowUp, saveTemplate } from '@/app/(app)/dashboard/contacts/actions';
+import { deleteTemplate, logFollowUp, saveTemplate, sendLeadEmail } from '@/app/(app)/dashboard/contacts/actions';
 import { TEMPLATE_VARS, renderTemplate, waNumber } from './template';
 import { TEMPLATE_LIBRARY, TEMPLATE_TYPES, type TemplateType } from './library';
 
@@ -271,6 +271,7 @@ export function ContactsClient({ contacts, templates }: { contacts: Contact[]; t
                 contact={selected}
                 template={template}
                 copied={copied}
+                key={`${selected.id}:${template.id}`}
                 onSend={(channel) => send(selected, channel)}
                 onEdit={() => setDraft({ ...template })}
               />
@@ -298,6 +299,14 @@ function Preview({
   const wa = waOf(contact);
   const email = emailOf(contact);
   const subject = renderTemplate(template.subject, contact);
+  const body = renderTemplate(template.body, contact);
+  const [mail, setMail] = useState<{ state: 'idle' | 'sending' | 'sent' | 'error'; note?: string }>({ state: 'idle' });
+
+  async function sendNow() {
+    setMail({ state: 'sending' });
+    const res = await sendLeadEmail(contact.id, subject, body, template.name);
+    setMail(res.ok ? { state: 'sent', note: `Sent via ${res.provider}` } : { state: 'error', note: res.error });
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -316,20 +325,29 @@ function Preview({
             <span className="font-medium">{subject}</span>
           </div>
         )}
-        <p className="px-3 py-3 text-xs leading-relaxed whitespace-pre-wrap">{renderTemplate(template.body, contact)}</p>
+        <p className="px-3 py-3 text-xs leading-relaxed whitespace-pre-wrap">{body}</p>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
         <ActionButton disabled={!wa} onClick={() => onSend('whatsapp')} primary>
           <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
         </ActionButton>
-        <ActionButton disabled={!email} onClick={() => onSend('email')}>
-          <Mail className="w-3.5 h-3.5" /> Email
+        <ActionButton disabled={!email || mail.state === 'sending' || mail.state === 'sent'} onClick={sendNow}>
+          {mail.state === 'sending' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : mail.state === 'sent' ? <Check className="w-3.5 h-3.5" /> : <Mail className="w-3.5 h-3.5" />}
+          {mail.state === 'sent' ? 'Sent' : 'Send email'}
         </ActionButton>
         <ActionButton onClick={() => onSend('copy')}>
           {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} {copied ? 'Copied' : 'Copy'}
         </ActionButton>
       </div>
+      {mail.note && (
+        <p className={`text-[11px] ${mail.state === 'error' ? 'text-red-600' : 'text-green-700'}`}>{mail.note}</p>
+      )}
+      {email && (
+        <button onClick={() => onSend('email')} className="self-start text-[10px] text-muted-foreground underline hover:text-foreground">
+          Or open it in your own mail app
+        </button>
+      )}
       <p className="text-[10px] text-muted-foreground">
         Sending logs a note on the lead and moves it from Prospecting to Contacted.
       </p>

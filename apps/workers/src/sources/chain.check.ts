@@ -16,7 +16,7 @@ import { toRawLead as yelpLead } from './yelp';
 import { buildSparql, toRawLeads as wikidataLeads } from './wikidata';
 import { industryOf } from './industries';
 import { mergeContacts } from './enrich';
-import { decryptSecret, encryptSecret, isByokKey } from '@repo/db';
+import { decryptSecret, encryptSecret, isByokKey, mailProvider } from '@repo/db';
 
 // ── query split ──────────────────────────────────────────────────────────────
 assert.deepEqual(splitQuery('dentist in bali'), { what: 'dentist', where: 'bali' });
@@ -116,6 +116,11 @@ parts[3] = Buffer.from('tampered').toString('base64');
 assert.throws(() => decryptSecret(parts.join(':'))); // GCM auth tag catches tampering
 assert.ok(isByokKey('GOOGLE_MAPS_API_KEY'));
 assert.ok(!isByokKey('DATABASE_URL') && !isByokKey('CAMOFOX_URL')); // infra is never per-workspace
+
+// ── email provider choice (packages/db/src/mailer.ts) ───────────────────────
+assert.equal(mailProvider({}), 'gmail'); // default
+assert.equal(mailProvider({ EMAIL_PROVIDER: 'Resend' }), 'resend');
+assert.equal(mailProvider({ EMAIL_PROVIDER: 'sumopod' }), 'smtp'); // old .env value keeps working
 
 // ── auto chain ───────────────────────────────────────────────────────────────
 async function checkChain() {

@@ -15,47 +15,66 @@ Resend ──webhook──► Vercel /api/webhooks/resend (cek tanda tangan Svix
 
 ---
 
+## 0. Urutan singkat
+
+1. Siapkan VPS dengan `deploy/setup-vps.sh` (bagian 1).
+2. Isi GitHub Secrets untuk deploy otomatis (bagian 2).
+3. Isi env Vercel dari `deploy/env.vercel.example` (bagian 3). **Sebelum** merge ke `main`, karena web versi baru butuh `API_URL`, `API_SECRET`, dan `SECRETS_KEY`.
+4. Merge ke `main`. GitHub Actions men-deploy backend, Vercel men-deploy web.
+5. Daftarkan webhook Resend dan URL Supabase (bagian 4).
+
 ## 1. VPS (sekali saja)
 
-Ubuntu 22.04/24.04, minimal 2 GB RAM (4 GB kalau camofox ikut jalan).
+Ubuntu 22.04/24.04, minimal 2 GB RAM (4 GB kalau camofox ikut jalan). Siapkan dulu A record subdomain API (mis. `api.domainmu.com`) yang mengarah ke IP VPS.
 
 ```bash
-# Node 22 + pnpm + PM2 + Python
+# di VPS, sebagai user biasa yang bisa sudo (bukan root)
+curl -fsSL https://raw.githubusercontent.com/maulana-tech/Utune-AI/main/deploy/setup-vps.sh -o setup-vps.sh
+
+bash setup-vps.sh --domain api.domainmu.com            # Redis pakai Upstash
+# atau
+bash setup-vps.sh --domain api.domainmu.com --redis    # Redis di VPS ini
+```
+
+Jalankan pertama kali: script memasang Node 22, pnpm, PM2, Python, meng-clone repo ke `~/app`, membuat `~/app/.env` dari `deploy/env.vps.example`, lalu berhenti. Isi `.env` (`nano ~/app/.env`), lalu jalankan perintah yang sama sekali lagi. Run kedua: install dependency, venv Python, build, `db push`, start PM2 (plus auto-start saat reboot), pasang Caddy dengan HTTPS untuk domainnya, dan menyalakan firewall (hanya SSH, 80, 443 yang terbuka).
+
+Script aman dijalankan ulang. Kalau SSH tidak di port 22, buka port itu dulu (`sudo ufw allow <port>/tcp`) sebelum menjalankan script, supaya tidak terkunci.
+
+<details><summary>Manual, tanpa script</summary>
+
+```bash
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs python3 python3-venv git
 sudo npm i -g pnpm@9.15.0 pm2
 
-# Kode
-git clone <repo> ~/app && cd ~/app
+git clone https://github.com/maulana-tech/Utune-AI.git ~/app && cd ~/app
+cp deploy/env.vps.example .env && nano .env && chmod 600 .env
 pnpm install --frozen-lockfile
 python3 -m venv apps/workers/.venv
 apps/workers/.venv/bin/pip install -r apps/workers/requirements.txt
-
-# .env di root repo (isi sesuai bagian 3)
-nano .env
-
-# Build, schema, jalan
 pnpm turbo build --filter=api --filter=workers
 pnpm --filter @repo/db push
-pm2 start ecosystem.config.js
-pm2 save && pm2 startup   # jalan lagi otomatis setelah reboot
+pm2 start ecosystem.config.js && pm2 save && pm2 startup
 ```
 
-**HTTPS untuk API:** buat A record subdomain (mis. `api.domainmu.com`) ke IP VPS, pasang [Caddy](https://caddyserver.com/docs/install), salin `deploy/Caddyfile` ke `/etc/caddy/Caddyfile`, ganti domainnya, `sudo systemctl reload caddy`. Sertifikat diurus Caddy. Tutup port 3001 dari luar (`sudo ufw allow 22,80,443/tcp && sudo ufw enable`).
-
-**Redis:** pakai Upstash (`rediss://…`), atau di VPS: `sudo apt-get install -y redis-server` lalu `REDIS_URL="redis://localhost:6379"`.
+HTTPS: pasang [Caddy](https://caddyserver.com/docs/install), salin `deploy/Caddyfile` ke `/etc/caddy/Caddyfile`, ganti domainnya, `sudo systemctl reload caddy`. Redis lokal: `sudo apt-get install -y redis-server`.
+</details>
 
 ## 2. Deploy otomatis (GitHub Actions)
 
 `.github/workflows/ci-cd.yml`: setiap push ke `main` → build check → SSH ke VPS → `git pull`, `pnpm install`, update venv Python, build, `db push`, `pm2 startOrReload`.
 
-Isi di GitHub → Settings → Secrets → Actions: `VPS_HOST`, `VPS_USERNAME`, `VPS_SSH_KEY`.
+Isi di GitHub → Settings → Secrets and variables → Actions:
+
+- `VPS_HOST`: IP VPS
+- `VPS_USERNAME`: user yang menjalankan `setup-vps.sh`
+- `VPS_SSH_KEY`: private key SSH yang public key-nya ada di `~/.ssh/authorized_keys` user itu. Buat khusus untuk deploy: `ssh-keygen -t ed25519 -f deploy_key -N ""`, tambahkan `deploy_key.pub` ke VPS, isi secret dengan isi `deploy_key`.
 
 `db push` hanya aman untuk perubahan schema yang menambah (tabel/kolom baru). Kalau perubahan menghapus atau mengganti kolom, drizzle akan berhenti dan minta konfirmasi: jalankan manual di VPS.
 
 ## 3. Environment variables
 
-`SECRETS_KEY` dan `API_SECRET` **harus sama persis** di VPS dan Vercel. Buat sekali: `openssl rand -base64 36`.
+Template lengkap: `deploy/env.vps.example` (VPS) dan `deploy/env.vercel.example` (Vercel). `SECRETS_KEY` dan `API_SECRET` **harus sama persis** di keduanya. Buat sekali: `openssl rand -base64 36`.
 
 | Variabel | VPS (`.env`) | Vercel | Keterangan |
 |---|:-:|:-:|---|

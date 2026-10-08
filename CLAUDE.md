@@ -262,7 +262,7 @@ Notes:
 ## Email Outreach
 
 **One mailer for everything:** `packages/db/src/mailer.ts` (`deliverEmail`, `sendAndRecord`, `sendDueEmails`), used by the API (`email/mail.service.ts`), the worker's `cron/email-scheduler.ts`, and the web Contacts page (`sendLeadEmail` server action). `EMAIL_PROVIDER` picks the transport:
-- **`gmail`** (default) — the workspace's Gmail via Composio REST (`GMAIL_SEND_EMAIL`, `COMPOSIO_API_KEY`, BYOK-able). Sends as the connected Gmail address; no tracking; ~500/day Gmail limit
+- **`gmail`** (default) — the workspace's Gmail via Composio REST (`GMAIL_SEND_EMAIL`). Uses `GMAIL_COMPOSIO_API_KEY` if set — the sending Gmail can live in a different Composio project from the Apollo/Reddit one — else `COMPOSIO_API_KEY`; both BYOK-able. Sends as the connected Gmail address; no tracking; ~500/day Gmail limit
 - **`resend`** — `RESEND_API_KEY` + `RESEND_FROM_EMAIL` on a verified domain (both BYOK-able). Delivery/open/click webhooks land on `apps/web/src/app/api/webhooks/resend/route.ts`; `email/email.service.ts` now only holds that webhook bookkeeping, matched on `email_outreach.resendEmailId` (which stores every provider's message id)
 - **`smtp`** (alias `sumopod`) — SumoPod SMTP via nodemailer (`SUMOPOD_SMTP_*`, `SUMOPOD_FROM_EMAIL`)
 

@@ -8,7 +8,7 @@ import { getWorkspaceKeys } from './secrets';
 /**
  * One way to send email, used by the API, the email scheduler and the web app.
  * EMAIL_PROVIDER picks the transport:
- *   gmail  (default) — the workspace's Gmail, connected in Composio (COMPOSIO_API_KEY)
+ *   gmail  (default) — the workspace's Gmail, connected in Composio (GMAIL_COMPOSIO_API_KEY, else COMPOSIO_API_KEY)
  *   resend           — RESEND_API_KEY + RESEND_FROM_EMAIL on a verified domain; delivery/open/click webhooks
  *   smtp             — SumoPod SMTP (SUMOPOD_SMTP_*); "sumopod" is accepted as an alias
  * `env` is process.env with the workspace's own keys (BYOK) layered on top.
@@ -76,9 +76,10 @@ export async function deliverEmail(
     return { provider, from, messageId: info.messageId ?? null };
   }
 
-  // gmail via Composio
-  const key = env.COMPOSIO_API_KEY;
-  if (!key) throw new Error('Gmail sending needs COMPOSIO_API_KEY (add it in Settings → API keys) and Gmail connected in Composio');
+  // gmail via Composio. GMAIL_COMPOSIO_API_KEY lets the sending Gmail live in a different
+  // Composio project than the one used for Apollo/Reddit.
+  const key = env.GMAIL_COMPOSIO_API_KEY || env.COMPOSIO_API_KEY;
+  if (!key) throw new Error('Gmail sending needs GMAIL_COMPOSIO_API_KEY or COMPOSIO_API_KEY (Settings → API keys) and Gmail connected in Composio');
   const userId = env.COMPOSIO_USER_ID || (await composioUser(key, 'gmail', workspaceId));
   const data = await composioTool(key, userId, 'GMAIL_SEND_EMAIL', {
     recipient_email: mail.to,

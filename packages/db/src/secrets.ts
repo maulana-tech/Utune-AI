@@ -10,7 +10,7 @@ import { workspaceApiKeys } from './schema/workspace_api_keys';
  */
 export const BYOK_KEYS = [
   { name: 'GOOGLE_MAPS_API_KEY', label: 'Google Maps (Places API)', sources: ['places'], url: 'https://console.cloud.google.com/apis/credentials' },
-  { name: 'COMPOSIO_API_KEY', label: 'Composio (Apollo)', sources: ['apollo'], url: 'https://app.composio.dev' },
+  { name: 'COMPOSIO_API_KEY', label: 'Composio (Apollo, Reddit)', sources: ['apollo', 'reddit'], url: 'https://app.composio.dev' },
   { name: 'APIFY_TOKEN', label: 'Apify', sources: ['apify'], url: 'https://console.apify.com/settings/integrations' },
   { name: 'OUTSCRAPER_API_KEY', label: 'Outscraper', sources: ['outscraper'], url: 'https://app.outscraper.com/profile' },
   { name: 'SERPAPI_API_KEY', label: 'SerpApi', sources: ['serpapi'], url: 'https://serpapi.com/manage-api-key' },
@@ -20,6 +20,7 @@ export const BYOK_KEYS = [
   { name: 'YELP_API_KEY', label: 'Yelp Fusion', sources: ['yelp'], url: 'https://www.yelp.com/developers' },
   { name: 'FIRECRAWL_API_KEY', label: 'Firecrawl', sources: ['firecrawl'], url: 'https://firecrawl.dev/app/api-keys' },
   { name: 'SGAI_API_KEY', label: 'ScrapeGraphAI (contact enrichment)', sources: [], url: 'https://dashboard.scrapegraphai.com' },
+  { name: 'GMAIL_COMPOSIO_API_KEY', label: 'Composio for sending email (Gmail)', sources: [], url: 'https://app.composio.dev' },
   { name: 'RESEND_API_KEY', label: 'Resend (email sending)', sources: [], url: 'https://resend.com/api-keys' },
   { name: 'RESEND_FROM_EMAIL', label: 'Resend sender address (verified domain)', sources: [], url: 'https://resend.com/domains' },
 ] as const;

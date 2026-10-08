@@ -2,7 +2,7 @@ import { and, desc, eq, max, sql } from 'drizzle-orm';
 import { db, emailTemplates, leadNotes, leads } from '@repo/db';
 import { getWorkspaceId } from '@/lib/get-workspace';
 import { ContactsClient } from '@/features/contacts/ContactsClient';
-import { STARTER_TEMPLATES } from '@/features/contacts/template';
+import { LIBRARY_STARTERS } from '@/features/contacts/library';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +18,7 @@ export default async function ContactsPage() {
   if (templates.length === 0) {
     templates = await db
       .insert(emailTemplates)
-      .values(STARTER_TEMPLATES.map((t) => ({ ...t, workspaceId })))
+      .values(LIBRARY_STARTERS.map((t) => ({ ...t, workspaceId })))
       .returning();
   }
 

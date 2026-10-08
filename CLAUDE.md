@@ -251,7 +251,7 @@ Notes:
 
 **Routes:**
 - Marketing landing: `/` and `/start` — route group `(marketing)` (Cofounder brand, smooth-scroll via Lenis)
-- Dashboard app — route group `(app)`: `/dashboard` (leads table + detail panel), `pipelines`, `contacts` (follow-up templates → WhatsApp/email/copy, logs to `lead_notes` with author `follow-up`; templates live in `email_templates`), `scrapes`, `scrape-schedules`, `query` (NL→SQL assistant), `history`, `settings`
+- Dashboard app — route group `(app)`: `/dashboard` (leads table + detail panel), `pipelines`, `contacts` (follow-up templates → WhatsApp/email/copy, logs to `lead_notes` with author `follow-up`; templates live in `email_templates`; a built-in Indonesian + English library of 12 B2B template types in `features/contacts/library.ts` — new workspaces are seeded with `LIBRARY_STARTERS`, the rest are added or edited-then-added from the Library panel. Keep template copy plain: no emoji, em dashes or filler), `scrapes`, `scrape-schedules`, `query` (NL→SQL assistant), `history`, `settings`
 - Auth: `/login` — route group `(auth)`; `/auth/callback` route handler
 - Next route handlers: `/api/leads/[id]/stage`, `/api/webhooks/resend` (Resend delivery/open/click events)
 

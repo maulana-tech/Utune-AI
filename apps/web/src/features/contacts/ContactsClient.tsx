@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo, useRef, useState, useTransition } from 'react';
-import { Check, Copy, Loader2, Mail, MessageCircle, Pencil, Phone, Plus, Search, Trash2, X } from 'lucide-react';
+import { BookOpen, Check, Copy, Loader2, Mail, MessageCircle, Pencil, Phone, Plus, Search, Trash2, X } from 'lucide-react';
 import { deleteTemplate, logFollowUp, saveTemplate } from '@/app/(app)/dashboard/contacts/actions';
 import { TEMPLATE_VARS, renderTemplate, waNumber } from './template';
+import { TEMPLATE_LIBRARY, TEMPLATE_TYPES, type TemplateType } from './library';
 
 export interface Contact {
   id: string;
@@ -51,6 +52,7 @@ export function ContactsClient({ contacts, templates }: { contacts: Contact[]; t
   const [selectedId, setSelectedId] = useState<string | null>(contacts[0]?.id ?? null);
   const [templateId, setTemplateId] = useState<string | null>(templates[0]?.id ?? null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [showLibrary, setShowLibrary] = useState(false);
   const [copied, setCopied] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -185,12 +187,28 @@ export function ContactsClient({ contacts, templates }: { contacts: Contact[]; t
         <aside className="lg:w-[420px] shrink-0 min-h-0 flex flex-col border border-border bg-background">
           <div className="p-3 border-b border-border flex items-center justify-between">
             <span className="text-[10px] font-bold uppercase tracking-widest">Follow-up templates</span>
-            <button
-              onClick={() => setDraft({ name: '', subject: '', body: '' })}
-              className="h-7 px-2 flex items-center gap-1 border border-border text-[10px] font-bold uppercase tracking-widest hover:bg-accent"
-            >
-              <Plus className="w-3 h-3" /> New
-            </button>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => {
+                  setShowLibrary((v) => !v);
+                  setDraft(null);
+                }}
+                className={`h-7 px-2 flex items-center gap-1 border text-[10px] font-bold uppercase tracking-widest ${
+                  showLibrary ? 'border-foreground bg-foreground text-background' : 'border-border hover:bg-accent'
+                }`}
+              >
+                <BookOpen className="w-3 h-3" /> Library
+              </button>
+              <button
+                onClick={() => {
+                  setDraft({ name: '', subject: '', body: '' });
+                  setShowLibrary(false);
+                }}
+                className="h-7 px-2 flex items-center gap-1 border border-border text-[10px] font-bold uppercase tracking-widest hover:bg-accent"
+              >
+                <Plus className="w-3 h-3" /> New
+              </button>
+            </div>
           </div>
 
           <div className="p-3 border-b border-border flex flex-wrap gap-1.5">
@@ -200,9 +218,10 @@ export function ContactsClient({ contacts, templates }: { contacts: Contact[]; t
                 onClick={() => {
                   setTemplateId(t.id);
                   setDraft(null);
+                  setShowLibrary(false);
                 }}
                 className={`px-2.5 py-1.5 border text-[11px] font-medium transition-colors ${
-                  t.id === template?.id && !draft ? 'border-foreground bg-foreground text-background' : 'border-border hover:bg-accent'
+                  t.id === template?.id && !draft && !showLibrary ? 'border-foreground bg-foreground text-background' : 'border-border hover:bg-accent'
                 }`}
               >
                 {t.name}
@@ -211,9 +230,17 @@ export function ContactsClient({ contacts, templates }: { contacts: Contact[]; t
           </div>
 
           <div className="flex-1 overflow-y-auto p-4">
-            {draft ? (
+            {showLibrary ? (
+              <TemplateLibrary
+                existingNames={new Set(templates.map((t) => t.name))}
+                onEdit={(t) => {
+                  setDraft({ name: t.name, subject: t.subject, body: t.body });
+                  setShowLibrary(false);
+                }}
+              />
+            ) : draft ? (
               <TemplateEditor
-                key={draft.id ?? 'new'}
+                key={draft.id ?? `new:${draft.name}`}
                 draft={draft}
                 onCancel={() => setDraft(null)}
                 onSaved={() => setDraft(null)}
@@ -221,7 +248,24 @@ export function ContactsClient({ contacts, templates }: { contacts: Contact[]; t
             ) : !template ? (
               <p className="text-xs text-muted-foreground">Create a template to start following up.</p>
             ) : !selected ? (
-              <p className="text-xs text-muted-foreground">Pick a contact to preview the message.</p>
+              <div className="flex flex-col gap-3">
+                <p className="text-[11px] text-muted-foreground">Pick a contact to see this message filled in with their details.</p>
+                <div className="border border-border bg-muted/30">
+                  {template.subject && (
+                    <div className="px-3 py-2 border-b border-border text-xs">
+                      <span className="text-muted-foreground">Subject: </span>
+                      <span className="font-medium">{template.subject}</span>
+                    </div>
+                  )}
+                  <p className="px-3 py-3 text-xs leading-relaxed whitespace-pre-wrap">{template.body}</p>
+                </div>
+                <button
+                  onClick={() => setDraft({ ...template })}
+                  className="self-start h-8 px-3 flex items-center gap-1.5 border border-border text-[10px] font-bold uppercase tracking-widest hover:bg-accent"
+                >
+                  <Pencil className="w-3 h-3" /> Edit template
+                </button>
+              </div>
             ) : (
               <Preview
                 contact={selected}
@@ -345,7 +389,7 @@ function TemplateEditor({ draft, onCancel, onSaved }: { draft: Draft; onCancel: 
       </div>
       <div>
         <label className={label} htmlFor="tpl-body">Message</label>
-        <textarea id="tpl-body" ref={bodyRef} className={`${field} h-48 resize-y`} value={value.body} onChange={(e) => setValue({ ...value, body: e.target.value })} />
+        <textarea id="tpl-body" ref={bodyRef} className={`${field} h-80 resize-y font-mono text-[11px] leading-relaxed`} value={value.body} onChange={(e) => setValue({ ...value, body: e.target.value })} />
         <div className="mt-2 flex flex-wrap gap-1">
           {TEMPLATE_VARS.map((v) => (
             <button key={v} type="button" onClick={() => insertVar(v)} className="px-1.5 py-0.5 border border-border font-mono text-[10px] hover:bg-accent">
@@ -407,5 +451,105 @@ function ActionButton({ disabled, primary, onClick, children }: { disabled?: boo
     >
       {children}
     </button>
+  );
+}
+
+/** Browse the built-in library (library.ts) and copy templates into this workspace. */
+function TemplateLibrary({
+  existingNames,
+  onEdit,
+}: {
+  existingNames: Set<string>;
+  onEdit: (t: { name: string; subject: string; body: string }) => void;
+}) {
+  const [lang, setLang] = useState<'id' | 'en'>('id');
+  const [type, setType] = useState<TemplateType | ''>('');
+  const [open, setOpen] = useState<string | null>(null);
+  const [adding, setAdding] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [, startTransition] = useTransition();
+
+  const items = TEMPLATE_LIBRARY.filter((t) => t.lang === lang && (!type || t.type === type));
+
+  function add(id: string) {
+    const t = TEMPLATE_LIBRARY.find((x) => x.id === id);
+    if (!t) return;
+    setError('');
+    setAdding(id);
+    startTransition(async () => {
+      try {
+        await saveTemplate({ name: t.name, subject: t.subject, body: t.body });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not add template');
+      } finally {
+        setAdding(null);
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <div className="flex border border-border">
+          {(['id', 'en'] as const).map((l) => (
+            <button
+              key={l}
+              onClick={() => setLang(l)}
+              className={`h-7 px-2.5 text-[10px] font-bold uppercase tracking-widest ${lang === l ? 'bg-foreground text-background' : 'hover:bg-accent'}`}
+            >
+              {l === 'id' ? 'Indonesia' : 'English'}
+            </button>
+          ))}
+        </div>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value as TemplateType | '')}
+          aria-label="Template type"
+          className="flex-1 h-7 px-2 text-[11px] border border-border bg-background focus:outline-none focus:border-primary"
+        >
+          <option value="">All types ({TEMPLATE_LIBRARY.filter((t) => t.lang === lang).length})</option>
+          {TEMPLATE_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      {items.length === 0 && <p className="text-xs text-muted-foreground">No template of this type in this language yet.</p>}
+
+      {items.map((t) => {
+        const added = existingNames.has(t.name);
+        return (
+          <div key={t.id} className="border border-border">
+            <button onClick={() => setOpen(open === t.id ? null : t.id)} className="w-full text-left px-3 py-2 hover:bg-accent/40">
+              <div className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{t.type}</div>
+              <div className="text-xs font-bold mt-0.5">{t.name}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5 truncate">Subject: {t.subject}</div>
+            </button>
+            {open === t.id && (
+              <p className="px-3 pb-3 text-[11px] leading-relaxed whitespace-pre-wrap border-t border-border pt-2">{t.body}</p>
+            )}
+            <div className="px-3 pb-2 flex justify-end gap-1.5">
+              <button
+                onClick={() => onEdit(t)}
+                className="h-7 px-3 flex items-center gap-1.5 border border-border text-[10px] font-bold uppercase tracking-widest hover:bg-accent"
+              >
+                <Pencil className="w-3 h-3" /> Edit &amp; add
+              </button>
+              <button
+                disabled={added || adding === t.id}
+                onClick={() => add(t.id)}
+                className="h-7 px-3 flex items-center gap-1.5 border border-border text-[10px] font-bold uppercase tracking-widest hover:bg-foreground hover:text-background disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {adding === t.id ? <Loader2 className="w-3 h-3 animate-spin" /> : added ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                {added ? 'Added' : 'Add'}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }

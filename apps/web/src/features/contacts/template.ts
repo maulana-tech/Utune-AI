@@ -43,25 +43,3 @@ export function waNumber(phone: string | null | undefined): string | null {
   else if (digits.startsWith('0')) digits = `62${digits.slice(1)}`;
   return digits.length >= 8 ? digits : null;
 }
-
-/** Seeded into a workspace the first time it opens Contacts with no templates. */
-export const STARTER_TEMPLATES = [
-  {
-    name: 'Perkenalan',
-    subject: 'Kerja sama dengan {{business_name}}',
-    body:
-      'Halo tim {{business_name}},\n\nSaya menemukan bisnis Anda di {{city}} dan tertarik untuk berdiskusi singkat soal bagaimana kami bisa membantu {{category}} seperti Anda mendapat lebih banyak pelanggan.\n\nApakah ada waktu 10 menit minggu ini?\n\nTerima kasih!',
-  },
-  {
-    name: 'Follow-up 1 (3 hari)',
-    subject: 'Menindaklanjuti pesan saya, {{business_name}}',
-    body:
-      'Halo lagi tim {{business_name}},\n\nSekadar menindaklanjuti pesan saya beberapa hari lalu. Kalau sekarang belum waktu yang pas, tidak masalah — boleh kabari kapan sebaiknya saya hubungi kembali?\n\nSalam.',
-  },
-  {
-    name: 'Follow-up terakhir',
-    subject: 'Pesan terakhir dari saya',
-    body:
-      'Halo tim {{business_name}},\n\nIni pesan terakhir saya agar tidak mengganggu. Kalau suatu saat butuh bantuan untuk bisnis {{category}} Anda, saya siap membantu.\n\nSukses selalu!',
-  },
-];

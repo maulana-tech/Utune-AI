@@ -30,7 +30,7 @@ packages/
 - All tenant data scoped to `workspaceId` — multi-tenant via single Postgres DB with row-level isolation
 - **Scraping never triggers AI.** `scrape.worker.ts` only writes lead rows; the lead-scoring pipeline runs only when someone calls `POST /leads/:id/analyze`. Do not re-add per-lead queueing to the scrape worker — it was removed on purpose to keep token cost at zero for large scrapes.
 - **No map.** MapLibre/react-map-gl were removed; `/dashboard` is a filterable, sortable leads table (`features/leads/LeadsTable.tsx`) with a detail side panel. Lead selection lives in `features/leads/store.ts`
-- **No API-side auth.** NestJS has no guards; `workspaceId` arrives as a query param / body field and is trusted. Auth is enforced only in `apps/web/src/middleware.ts` (Supabase session → redirect `/dashboard/*` to `/login`). Do not assume the API is protected.
+- **API is private, the web proxies it.** NestJS trusts `workspaceId` from the request, so it only accepts calls carrying `API_SECRET` (`apps/api/src/api-secret.guard.ts`, global `APP_GUARD`; `/health` open; no secret = open in dev, closed in production). Browser code calls `apiUrl()` = `/api/backend/*` (`apps/web/src/app/api/backend/[...path]/route.ts`), which requires a Supabase session, **overwrites** any `workspaceId` in query/body with the user's own, and forwards via `backendFetch` (`lib/backend.ts`, server-only `API_URL` + secret). Never point browser code at the API directly. `getWorkspaceId()` falls back to the demo workspace only outside production.
 
 ## Commands
 
@@ -301,13 +301,12 @@ Dockerfile installs Node 22 + Python 3 + venv for scraper.
 
 **Actual CI/CD** (`.github/workflows/ci-cd.yml`): on push to `main`, builds `api`/`workers`/`@repo/db`, then SSHes to a VPS (`VPS_HOST`/`VPS_USERNAME`/`VPS_SSH_KEY` secrets) to `git pull`, `pnpm install`, `pnpm turbo build --filter=api --filter=workers`, `pm2 restart all`. The web app deploys separately on Vercel (`vercel.json` builds from the repo root). Note the CI **does not run typecheck, lint, or the web build** — run the pre-commit checklist locally.
 
-See `DEPLOY.md` for the Vercel + SumoPod walkthrough (predates the VPS pipeline; treat the workflow file as the source of truth).
+See `DEPLOY.md` for the current walkthrough: VPS setup, Caddy HTTPS (`deploy/Caddyfile`), the full env-var table for VPS vs Vercel, Resend webhook + Supabase auth URLs. PM2 runs `node --import tsx -r dotenv/config` on the tsc output (`ecosystem.config.js`); Python deps are in `apps/workers/requirements.txt`; the deploy job also runs `pnpm --filter @repo/db push`.
 
 ## Not Yet Implemented
 
 **Do not assume these exist:**
 - Tests (no Vitest/Playwright/Supertest files; `pnpm test` is a no-op Turbo passthrough)
-- NestJS auth guards or `@Public()` decorator — every API endpoint is open, `workspaceId` is client-supplied
 - `nestjs-zod` for DTO validation
 - `@nestjs/throttler` rate limiting
 - `next-intl` i18n

@@ -1,2 +1,4 @@
-scrapling[fetchers]>=0.4
-curl-cffi>=0.6.0
+# Python deps for apps/workers/src/python (places_scraper.py, enrich_websites.py).
+# maps_scraper.py (legacy, unused) also needs scrapling; not installed on purpose.
+requests>=2.31
+curl_cffi>=0.7

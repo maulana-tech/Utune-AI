@@ -17,6 +17,9 @@ Resend ──webhook──► Vercel /api/webhooks/resend (cek tanda tangan Svix
 
 ## 0. Urutan singkat
 
+Siapkan Supabase dulu (project, connection string, login, kunci Data API): **[SUPABASE-SETUP.md](SUPABASE-SETUP.md)**.
+
+
 1. Siapkan VPS dengan `deploy/setup-vps.sh` (bagian 1).
 2. Isi GitHub Secrets untuk deploy otomatis (bagian 2).
 3. Isi env Vercel dari `deploy/env.vercel.example` (bagian 3). **Sebelum** merge ke `main`, karena web versi baru butuh `API_URL`, `API_SECRET`, dan `SECRETS_KEY`.
@@ -102,6 +105,6 @@ Setelah mengubah `.env` di VPS: `pm2 reload ecosystem.config.js --update-env`. D
 ## 4. Setelah deploy
 
 - **Resend webhook:** Resend → Webhooks → endpoint `https://<domain-web>/api/webhooks/resend`, event `email.*`. Salin signing secret ke `RESEND_WEBHOOK_SECRET` di Vercel.
-- **Supabase Auth:** Authentication → URL Configuration → Site URL = domain web, tambahkan `https://<domain-web>/auth/callback` ke Redirect URLs.
+- **Supabase:** Site URL, Redirect URLs, dan SMTP untuk email login, lihat [SUPABASE-SETUP.md](SUPABASE-SETUP.md) bagian 6.
 - **Cek:** `curl https://api.domainmu.com/health` → 200; `curl https://api.domainmu.com/leads/search` → 401 (artinya API terkunci); login di web lalu jalankan satu scrape.
 - **Log:** `pm2 logs workers`, `pm2 logs api`.

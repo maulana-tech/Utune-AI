@@ -107,7 +107,7 @@ Current tables:
 - `scrape_schedules` — recurring scrape configs (isActive, intervalMinutes, lastRunAt, retryCount/maxRetries) driven by the cron scheduler
 - `email_templates`, `email_sequences`, `email_outreach` — outreach templates, multi-step sequences + enrollments, and per-email send/track rows (`resendEmailId`, `status`, `scheduledFor`)
 
-**No migrations directory exists.** Schema changes reach the DB via `drizzle-kit push`, not generated SQL migrations.
+**No migrations directory exists.** Schema changes reach the DB via `drizzle-kit push`, not generated SQL migrations. **Always follow a push with `pnpm --filter @repo/db rls`** (`src/enable-rls.ts`): Drizzle tables have no RLS, and the anon key is public, so without it Supabase's Data API exposes every table. The app connects as `postgres` (bypasses RLS) and never uses the Data API.
 
 **Important:** All UUIDs use `uuid().defaultRandom()` (UUID v4). Foreign keys enforce referential integrity. Every tenant table has `workspaceId` column.
 
@@ -349,7 +349,7 @@ The Cofounder marketing site is folded into `apps/web` under the `(marketing)` r
 - `docs/swarm-ai-plan.md` — full Swarm migration plan: multi-model strategy, per-phase implementation steps, risk/mitigation
 - `CONTEXT.md` — full product vision and feature roadmap
 - `AGENTS.md` — detailed technical guidance for AI agents (overlaps with this file, but includes more granular notes)
-- `DEPLOY.md` — Vercel + SumoPod split deploy walkthrough (Indonesian)
+- `DEPLOY.md` — current deploy walkthrough (VPS + Vercel, Indonesian); `SUPABASE-SETUP.md` — Supabase project, pooler URLs (session for VPS, transaction for Vercel), auth URLs/SMTP, and why the Data API is locked (RLS on every table via `pnpm --filter @repo/db rls`, run after every push)
 - `docs/email-scraping.md`, `docs/EMAIL-SENDING-PLAN.md`, `docs/RESEND-SETUP.md` — email enrichment + outreach details
 - `docs/scraping-cron-plan.md` — scrape scheduler design
 - `docs/redis-migration.md` / `REDIS-MIGRATION.md` — Upstash → self-hosted Redis notes

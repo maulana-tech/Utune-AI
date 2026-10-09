@@ -115,7 +115,12 @@ function LoginForm() {
       router.push(redirectTo);
       router.refresh();
     } else {
-      const { error: authError } = await supabase.auth.signUp({ email, password });
+      // The confirmation link must land on /auth/callback, which exchanges the code for a session.
+      const { error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      });
       if (authError) {
         setError(authError.message);
         setLoading(false);

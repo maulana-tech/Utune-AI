@@ -81,6 +81,7 @@ pnpm turbo build --filter=api --filter=workers
 
 step "Database schema"
 pnpm --filter @repo/db push
+pnpm --filter @repo/db rls   # lock the Supabase Data API out of every table
 
 step "PM2"
 pm2 startOrReload ecosystem.config.js --update-env

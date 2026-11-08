@@ -47,16 +47,30 @@ interface Lead {
   phone: string | null;
   website?: string | null;
   source?: string;
+  lat?: number | null;
+  lng?: number | null;
   postText?: string | null;
   postedAt?: string | null;
   createdAt: string;
 }
 
-/** Where the "open" link points, by source — the column is still called mapsUrl. */
+const SOCIAL_SOURCES = new Set(['reddit', 'twitter', 'threads', 'linkedin']);
+
+/** A Google Maps link for a lead, preferring the lat/lng pin. Social posts keep their post URL. */
+function googleMapsHref(lead: Lead): string | null {
+  if (lead.source && SOCIAL_SOURCES.has(lead.source)) return lead.mapsUrl;
+  if (typeof lead.lat === 'number' && typeof lead.lng === 'number') {
+    const label = encodeURIComponent(lead.name);
+    return `https://www.google.com/maps/search/?api=1&query=${lead.lat},${lead.lng}&query_place_id=${label}`;
+  }
+  const addr = [lead.name, lead.address].filter(Boolean).join(', ');
+  if (addr) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
+  return lead.mapsUrl;
+}
+
 function sourceLinkLabel(source: string | undefined): string {
-  if (!source || source === 'places' || source === 'apify') return 'Open in Google Maps';
-  if (['reddit', 'twitter', 'threads', 'linkedin'].includes(source)) return 'Open post';
-  return 'Open source';
+  if (SOCIAL_SOURCES.has(source ?? '')) return 'Open post';
+  return 'Open in Google Maps';
 }
 
 function renderInsightValue(val: unknown): React.ReactNode {
@@ -253,17 +267,29 @@ export function LeadDetailPanel() {
                   </a>
                 </div>
               )}
-              {selectedLead.mapsUrl && (
+              {googleMapsHref(selectedLead) && (
                 <div className="flex gap-2">
                   <span className="text-muted-foreground w-16 shrink-0">Link</span>
-                  <a
-                    href={selectedLead.mapsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium text-primary hover:underline truncate"
-                  >
-                    {sourceLinkLabel(selectedLead.source)} ↗
-                  </a>
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <a
+                      href={googleMapsHref(selectedLead)!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-primary hover:underline truncate"
+                    >
+                      {sourceLinkLabel(selectedLead.source)} ↗
+                    </a>
+                    {selectedLead.mapsUrl && googleMapsHref(selectedLead) !== selectedLead.mapsUrl && (
+                      <a
+                        href={selectedLead.mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-muted-foreground hover:underline truncate"
+                      >
+                        View on {selectedLead.source ?? 'source'} ↗
+                      </a>
+                    )}
+                  </div>
                 </div>
               )}
               {selectedLead.postText && selectedLead.website && (

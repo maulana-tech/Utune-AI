@@ -4,6 +4,8 @@ import { ChatFab } from '../../../features/assistant/ChatPanel';
 import { getWorkspaceId } from '../../../lib/get-workspace';
 import { WorkspaceProvider } from '../../../lib/workspace-context';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const workspaceId = await getWorkspaceId();
 

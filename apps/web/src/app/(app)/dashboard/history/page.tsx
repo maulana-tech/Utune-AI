@@ -9,6 +9,8 @@ export const metadata = {
   description: 'Activity history and agent logs',
 };
 
+export const dynamic = 'force-dynamic';
+
 type AgentLogRow = {
   id: string;
   agentName: string;

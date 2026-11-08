@@ -1,20 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { backendFetch } from '@/lib/backend';
 import { getWorkspaceId } from '@/lib/get-workspace';
+import { isAuthenticated } from '@/lib/auth';
 
 /**
  * Browser → API proxy. Every client fetch to `apiUrl()` lands here. The signed-in
  * user's workspace replaces any workspaceId the client sent (query string and JSON
- * body), so one tenant can't read or act on another's data, and the API only ever
- * sees requests carrying API_SECRET.
+ * body), so the API only ever sees requests carrying API_SECRET.
  */
 async function proxy(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-  let workspaceId: string;
-  try {
-    workspaceId = await getWorkspaceId();
-  } catch {
+  if (!(await isAuthenticated())) {
     return NextResponse.json({ message: 'Not signed in' }, { status: 401 });
   }
+  const workspaceId = await getWorkspaceId();
 
   const { path } = await params;
   const search = new URLSearchParams(req.nextUrl.searchParams);

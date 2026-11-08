@@ -41,15 +41,23 @@ export const openrouter = process.env.OPENROUTER_API_KEY
     })
   : null;
 
-/** AWS Bedrock: managed Claude/Llama/Mistral/Titan via AWS */
-export const bedrock = process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
-  ? createAmazonBedrock({
-      region: process.env.AWS_REGION || process.env.BEDROCK_REGION || 'us-east-1',
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      ...(process.env.AWS_SESSION_TOKEN && { sessionToken: process.env.AWS_SESSION_TOKEN }),
-    })
-  : null;
+/** AWS Bedrock: managed Claude/Llama/Mistral/Titan via AWS.
+ *  Supports two auth modes:
+ *  - Bearer token (new): AWS_BEARER_TOKEN_BEDROCK (env var picked up by AWS SDK >=3.6xx).
+ *    We pass `bedrockOptions` to bypass ai-sdk's IAM-cred requirement.
+ *  - IAM credentials (classic): AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY.
+ */
+const bedrockRegion = process.env.AWS_REGION || process.env.BEDROCK_REGION || 'us-east-1';
+export const bedrock = process.env.AWS_BEARER_TOKEN_BEDROCK
+  ? createAmazonBedrock({ bedrockOptions: { region: bedrockRegion } })
+  : (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY)
+    ? createAmazonBedrock({
+        region: bedrockRegion,
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        ...(process.env.AWS_SESSION_TOKEN && { sessionToken: process.env.AWS_SESSION_TOKEN }),
+      })
+    : null;
 
 // ─── Helper: resolve model name to a LanguageModel ──────────────────────────
 // Syntax: "<provider>:<model>" — provider is optional (defaults to nvidia).

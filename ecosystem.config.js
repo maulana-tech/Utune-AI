@@ -17,7 +17,7 @@ module.exports = {
       script: 'apps/api/dist/main.js',
       interpreter: 'node',
       node_args: '--import tsx -r dotenv/config',
-      env: { NODE_ENV: 'production', PORT: 3001, DOTENV_CONFIG_PATH: path.join(root, '.env') },
+      env: { NODE_ENV: 'production', PORT: 3002, DOTENV_CONFIG_PATH: path.join(root, '.env') },
     },
     {
       name: 'workers',

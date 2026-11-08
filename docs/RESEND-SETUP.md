@@ -2,8 +2,8 @@
 
 ## Quick Start Checklist
 
-- [x] API Key configured: `re_hSpE9HMA_QGB1gvEtNtApExNYqCxy9o7g`
-- [x] From email: `hello@maula.tech`
+- [x] API Key configured: `re_YOUR_API_KEY_HERE`
+- [x] From email: `hello@yourdomain.com`
 - [ ] Domain verification
 - [ ] DNS records (SPF, DKIM)
 - [ ] Webhook configuration
@@ -16,7 +16,7 @@
 
 1. **Login to Resend**: https://resend.com/domains
 
-2. **Add Domain**: `maula.tech`
+2. **Add Domain**: `yourdomain.com`
 
 3. **Add DNS Records** (from Resend dashboard):
 
@@ -40,10 +40,10 @@
 
 ```bash
 # Check SPF
-dig maula.tech TXT
+dig yourdomain.com TXT
 
 # Check DKIM
-dig resend._domainkey.maula.tech TXT
+dig resend._domainkey.yourdomain.com TXT
 ```
 
 ---
@@ -53,7 +53,7 @@ dig resend._domainkey.maula.tech TXT
 ### Production Webhook URL:
 
 ```
-https://api.maula.tech/webhooks/resend
+https://api.yourdomain.com/webhooks/resend
 ```
 
 **Or if deployed separately:**
@@ -67,7 +67,7 @@ https://your-api-domain.com/webhooks/resend
 
 2. **Add Endpoint**: Click "Add Endpoint"
 
-3. **Enter URL**: `https://api.maula.tech/webhooks/resend`
+3. **Enter URL**: `https://api.yourdomain.com/webhooks/resend`
 
 4. **Select Events**:
    - ✅ email.sent
@@ -178,13 +178,13 @@ grep RESEND_API_KEY .env
 **Check 2: Domain Verification**
 ```bash
 # Check DNS records
-dig maula.tech TXT
+dig yourdomain.com TXT
 ```
 
 **Check 3: From Email**
 ```bash
 # Must match verified domain
-# hello@maula.tech ✅
+# hello@yourdomain.com ✅
 # hello@gmail.com ❌
 grep RESEND_FROM_EMAIL .env
 ```
@@ -272,8 +272,8 @@ grep "Resend Webhook" apps/api/logs/*.log
 
 ### Environment Variables:
 ```bash
-RESEND_API_KEY="re_hSpE9HMA_QGB1gvEtNtApExNYqCxy9o7g"
-RESEND_FROM_EMAIL="hello@maula.tech"
+RESEND_API_KEY="re_YOUR_API_KEY_HERE"
+RESEND_FROM_EMAIL="hello@yourdomain.com"
 ```
 
 ### Key Endpoints:

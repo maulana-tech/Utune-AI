@@ -202,8 +202,8 @@ Add to `.env`:
 
 ```bash
 # Email Service (Resend)
-RESEND_API_KEY="re_hSpE9HMA_QGB1gvEtNtApExNYqCxy9o7g"
-RESEND_FROM_EMAIL="hello@maula.tech"
+RESEND_API_KEY="re_YOUR_API_KEY_HERE"
+RESEND_FROM_EMAIL="hello@yourdomain.com"
 ```
 
 ---

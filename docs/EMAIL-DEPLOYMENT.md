@@ -57,8 +57,8 @@ pnpm turbo build --filter=api --filter=workers
 Make sure `.env` has:
 
 ```bash
-RESEND_API_KEY="re_hSpE9HMA_QGB1gvEtNtApExNYqCxy9o7g"
-RESEND_FROM_EMAIL="hello@maula.tech"
+RESEND_API_KEY="re_YOUR_API_KEY_HERE"
+RESEND_FROM_EMAIL="hello@yourdomain.com"
 ```
 
 ### 1.6 Restart Services
@@ -142,7 +142,7 @@ https://utune-ai.vercel.app/api/webhooks/resend
 
 1. Go to https://resend.com/domains
 2. Click "Add Domain"
-3. Enter: `maula.tech`
+3. Enter: `yourdomain.com`
 
 ### 3.2 Add DNS Records
 
@@ -178,8 +178,8 @@ Value: [value from Resend dashboard]
 ### 3.4 Check DNS (optional)
 
 ```bash
-dig maula.tech TXT
-dig resend._domainkey.maula.tech TXT
+dig yourdomain.com TXT
+dig resend._domainkey.yourdomain.com TXT
 ```
 
 ---
@@ -377,7 +377,7 @@ grep RESEND_API_KEY ~/app/.env
 ```bash
 # Should return "Verified"
 curl https://api.resend.com/domains \
-  -H "Authorization: Bearer re_hSpE9HMA_QGB1gvEtNtApExNYqCxy9o7g"
+  -H "Authorization: Bearer re_YOUR_API_KEY_HERE"
 ```
 
 **3. Check API Logs**
@@ -421,7 +421,7 @@ Make sure port 3001 is open.
 **Solutions:**
 
 1. ✅ Verify domain with SPF/DKIM
-2. ✅ Use proper from email (`hello@maula.tech`)
+2. ✅ Use proper from email (`hello@yourdomain.com`)
 3. ✅ Warm up sending (start with 10-50 emails/day)
 4. ✅ Monitor bounce rate
 5. ✅ Add unsubscribe link

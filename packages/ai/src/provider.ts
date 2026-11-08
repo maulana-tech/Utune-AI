@@ -1,5 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 
 // ─── Providers ───────────────────────────────────────────────────────────────
 
@@ -27,7 +28,32 @@ export const anthropic = process.env.ANTHROPIC_API_KEY
   ? createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   : null;
 
+/** OpenRouter: single gateway for Anthropic, OpenAI, Meta, Mistral, Google, etc. */
+export const openrouter = process.env.OPENROUTER_API_KEY
+  ? createOpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY,
+      // OpenRouter asks (not requires) these headers for analytics
+      headers: {
+        ...(process.env.OPENROUTER_SITE_URL && { 'HTTP-Referer': process.env.OPENROUTER_SITE_URL }),
+        ...(process.env.OPENROUTER_APP_NAME && { 'X-Title': process.env.OPENROUTER_APP_NAME }),
+      },
+    })
+  : null;
+
+/** AWS Bedrock: managed Claude/Llama/Mistral/Titan via AWS */
+export const bedrock = process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+  ? createAmazonBedrock({
+      region: process.env.AWS_REGION || process.env.BEDROCK_REGION || 'us-east-1',
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      ...(process.env.AWS_SESSION_TOKEN && { sessionToken: process.env.AWS_SESSION_TOKEN }),
+    })
+  : null;
+
 // ─── Helper: resolve model name to a LanguageModel ──────────────────────────
+// Syntax: "<provider>:<model>" — provider is optional (defaults to nvidia).
+// Supported providers: nvidia | google | anthropic | sumopod | openrouter | bedrock
 
 function resolveModel(name: string) {
   const idx = name.indexOf(':');
@@ -38,6 +64,8 @@ function resolveModel(name: string) {
     if (provider === 'google' && google) return google(model);
     if (provider === 'anthropic' && anthropic) return anthropic(model) as unknown as ReturnType<typeof nvidia>;
     if (provider === 'sumopod' && sumopod) return sumopod(model);
+    if (provider === 'openrouter' && openrouter) return openrouter(model);
+    if (provider === 'bedrock' && bedrock) return bedrock(model) as unknown as ReturnType<typeof nvidia>;
   }
   return nvidia(name);
 }
@@ -67,9 +95,13 @@ export const models = {
 };
 
 // ─── Fallback models (used when primary fails) ─────────────────────────────
+// If NVIDIA_API_KEY isn't set, fallback == primary fast model (same tier, same provider)
+// so callers still get *something* instead of a crash.
+
+const haveNvidia = !!process.env.NVIDIA_API_KEY;
 
 export const fallbackModels = {
-  fast: nvidia('meta/llama-3.1-8b-instruct'),        // always available
-  standard: nvidia('meta/llama-3.1-8b-instruct'),     // downgrade to 8b
-  heavy: nvidia('meta/llama-3.1-8b-instruct'),        // downgrade to 8b
+  fast: haveNvidia ? nvidia('meta/llama-3.1-8b-instruct') : fastModel,
+  standard: haveNvidia ? nvidia('meta/llama-3.1-8b-instruct') : fastModel,
+  heavy: haveNvidia ? nvidia('meta/llama-3.1-8b-instruct') : fastModel,
 };

@@ -6,6 +6,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@ai-sdk/amazon-bedrock": "^0.0.36",
     "@ai-sdk/anthropic": "^3.0.78",
     "@ai-sdk/openai": "^0.0.40",
     "ai": "^3.0.0",
